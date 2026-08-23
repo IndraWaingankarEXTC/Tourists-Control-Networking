@@ -17,9 +17,11 @@ let compassInterval = null;
 
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
-let lastKnownCoords = { latitude: 18.9894, longitude: 73.1175 };
 
-// Persistent Map and Marker Storage
+// Active device coordinates (null until dynamically resolved)
+let lastKnownCoords = null;
+
+// Persistent Leaflet map & marker cache
 let victimMapInstance = null;
 let victimMarkers = {};
 
@@ -30,10 +32,32 @@ let staffMapInstances = {};
 let staffMarkers = {};
 
 // ==========================================
-// 2. HARDWARE GPS WATCHER & COMMAND HQ SYNC
+// 2. DYNAMIC HARDWARE & IP GEOLOCATION ENGINE
 // ==========================================
-function startContinuousLocationSync() {
-  if (!navigator.geolocation) return;
+
+// Fallback to real dynamic IP coordinates if satellite GPS is unavailable/blocked
+async function fetchIpGeolocation() {
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    const data = await res.json();
+    if (data && data.latitude && data.longitude) {
+      return {
+        latitude: Number(data.latitude),
+        longitude: Number(data.longitude)
+      };
+    }
+  } catch (err) {
+    console.warn("IP geolocation resolver note:", err.message);
+  }
+  return null;
+}
+
+// Continuous hardware GPS watcher with dynamic resolution
+async function startContinuousLocationSync() {
+  if (!navigator.geolocation) {
+    lastKnownCoords = await fetchIpGeolocation();
+    return;
+  }
 
   navigator.geolocation.watchPosition(
     async (position) => {
@@ -45,7 +69,7 @@ function startContinuousLocationSync() {
       const userId = localStorage.getItem("touristSafetyUserId");
       const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
 
-      // 1. If tourist/volunteer is logged in, sync their position
+      // Sync active user GPS
       if (userId) {
         await supabase.from("locations").insert({
           user_id: userId,
@@ -54,7 +78,7 @@ function startContinuousLocationSync() {
         });
       }
 
-      // 2. If logged in as Staff Command Center, sync device GPS as Command HQ
+      // Sync Command HQ GPS
       if (isStaffActive) {
         await supabase.from("command_center_location").upsert({
           id: 'PRIMARY_HQ',
@@ -64,16 +88,34 @@ function startContinuousLocationSync() {
         });
       }
     },
-    (err) => console.warn("GPS lookup note:", err.message),
-    { enableHighAccuracy: true, maximumAge: 3000, timeout: 8000 }
+    async (err) => {
+      console.warn("Hardware GPS lock note, resolving dynamic network position:", err.message);
+      if (!lastKnownCoords) {
+        lastKnownCoords = await fetchIpGeolocation();
+      }
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 2000,
+      timeout: 10000
+    }
   );
 }
 
 startContinuousLocationSync();
 
 async function getCoordinates() {
+  if (lastKnownCoords) return lastKnownCoords;
+
   return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(lastKnownCoords);
+    if (!navigator.geolocation) {
+      fetchIpGeolocation().then(coords => {
+        lastKnownCoords = coords;
+        resolve(coords || { latitude: 0, longitude: 0 });
+      });
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         lastKnownCoords = {
@@ -82,13 +124,16 @@ async function getCoordinates() {
         };
         resolve(lastKnownCoords);
       },
-      () => resolve(lastKnownCoords),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 3000 }
+      async () => {
+        const ipCoords = await fetchIpGeolocation();
+        lastKnownCoords = ipCoords;
+        resolve(ipCoords || { latitude: 0, longitude: 0 });
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 2000 }
     );
   });
 }
 
-// Fetch live Command Center coordinates from DB or local hardware
 async function getLiveCommandHQCoords() {
   const { data } = await supabase
     .from("command_center_location")
@@ -99,7 +144,7 @@ async function getLiveCommandHQCoords() {
   if (data && data.latitude && data.longitude) {
     return { latitude: Number(data.latitude), longitude: Number(data.longitude) };
   }
-  return lastKnownCoords;
+  return await getCoordinates();
 }
 
 // ==========================================
@@ -340,7 +385,7 @@ window.closeModal = function() {
 };
 
 // ==========================================
-// 6. STAFF COMMAND MATRIX & DYNAMIC HQ LIVE MAPS
+// 6. STAFF COMMAND MATRIX & DYNAMIC MAPS
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -365,9 +410,15 @@ window.loadStaffMonitoringData = async function() {
     const profileMap = {};
     profiles.forEach(p => { profileMap[String(p.id)] = p; });
 
+    // Latest location per user
     const userLocationMap = {};
     locations.forEach(loc => {
-      if (!userLocationMap[String(loc.user_id)]) userLocationMap[String(loc.user_id)] = loc;
+      if (!userLocationMap[String(loc.user_id)]) {
+        userLocationMap[String(loc.user_id)] = {
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude)
+        };
+      }
     });
 
     document.getElementById("mTotal").innerText = profiles.length;
@@ -375,7 +426,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dynamic Dispatch Prompt For Unhandled SOS
+    // 1. Dynamic SOS Dispatch Queue
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -406,7 +457,7 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. Full-Width Roster Table
+    // 2. Full Table Roster
     tableBody.innerHTML = profiles.map(p => {
       const isCriticalSOS = activeSOSUserIds.has(String(p.id));
       let isNearbyResponder = false;
@@ -415,7 +466,7 @@ window.loadStaffMonitoringData = async function() {
       if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0) {
         if (myLoc) {
           activeSOSEvents.forEach(sos => {
-            const dist = calculateDistanceKm(myLoc.latitude, myLoc.longitude, sos.latitude, sos.longitude);
+            const dist = calculateDistanceKm(myLoc.latitude, myLoc.longitude, Number(sos.latitude), Number(sos.longitude));
             if (dist <= 25.0) isNearbyResponder = true;
           });
         }
@@ -433,9 +484,9 @@ window.loadStaffMonitoringData = async function() {
       }
 
       const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-      const coordsDisplay = myLoc && myLoc.latitude 
+      const coordsDisplay = myLoc 
         ? `${Number(myLoc.latitude).toFixed(4)}, ${Number(myLoc.longitude).toFixed(4)}` 
-        : `${lastKnownCoords.latitude.toFixed(4)}, ${lastKnownCoords.longitude.toFixed(4)}`;
+        : `Resolving GPS...`;
 
       return `
         <tr class="${rowClass}">
@@ -451,7 +502,7 @@ window.loadStaffMonitoringData = async function() {
       `;
     }).join("");
 
-    // 3. Dynamic HQ Live Maps
+    // 3. Dynamic Multi-Case Maps
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -476,7 +527,7 @@ window.loadStaffMonitoringData = async function() {
 
       const activeCaseIds = Object.keys(victimMissionsMap);
 
-      // Clean up closed case maps
+      // Remove inactive maps
       Object.keys(staffMapInstances).forEach(id => {
         if (!activeCaseIds.includes(id)) {
           staffMapInstances[id].remove();
@@ -504,11 +555,13 @@ window.loadStaffMonitoringData = async function() {
         const missions = victimMissionsMap[vicId];
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
-        const vicLoc = userLocationMap[vicId] || lastKnownCoords;
+        
+        // Use real dynamic victim coordinates
+        const vicLoc = userLocationMap[vicId] || cmdHQ;
 
         let map = staffMapInstances[vicId];
         if (!map) {
-          map = L.map(mapContainerId, { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLoc.latitude, vicLoc.longitude], 14);
+          map = L.map(mapContainerId, { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLoc.latitude, vicLoc.longitude], 13);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
           staffMapInstances[vicId] = map;
           staffMarkers[vicId] = {};
@@ -525,7 +578,7 @@ window.loadStaffMonitoringData = async function() {
           currentMarkers.victim.setLatLng([vicLoc.latitude, vicLoc.longitude]);
         }
 
-        // Blue Pin: Command HQ (Live Location)
+        // Blue Pin: Command Unit (Dynamic HQ location)
         let cmdDistanceText = "";
         let cmdMapsUrl = "#";
         if (hasCommand) {
@@ -548,7 +601,7 @@ window.loadStaffMonitoringData = async function() {
           delete currentMarkers.command;
         }
 
-        // Yellow Pin: Volunteer
+        // Yellow Pin: Volunteer (Dynamic Volunteer location)
         let volDistanceText = "";
         let volMapsUrl = "#";
         if (volunteerMissions.length > 0) {
@@ -772,9 +825,10 @@ async function updateVolunteerLocationConvergence() {
     return;
   }
 
-  const [targetMissionsRes, cmdHQ] = await Promise.all([
+  const [targetMissionsRes, cmdHQ, myCoords] = await Promise.all([
     supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
-    getLiveCommandHQCoords()
+    getLiveCommandHQCoords(),
+    getCoordinates()
   ]);
 
   const hasCommandAssistance = targetMissionsRes.data && targetMissionsRes.data.some(m => m.responder_type === 'COMMAND_CENTER');
@@ -782,15 +836,15 @@ async function updateVolunteerLocationConvergence() {
   const targetLat = Number(activeRescueTarget.latitude);
   const targetLon = Number(activeRescueTarget.longitude);
 
-  const distKm = calculateDistanceKm(lastKnownCoords.latitude, lastKnownCoords.longitude, targetLat, targetLon);
-  const bearing = calculateBearing(lastKnownCoords.latitude, lastKnownCoords.longitude, targetLat, targetLon);
+  const distKm = calculateDistanceKm(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
+  const bearing = calculateBearing(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
   const routeInfo = calculateRouteAndETA(distKm);
 
-  // Persistent Volunteer Live Map
+  // Persistent Volunteer Live Map Window
   const mapContainer = document.getElementById("volunteerLiveMap");
   if (mapContainer) {
     if (!volunteerMapInstance) {
-      volunteerMapInstance = L.map('volunteerLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([targetLat, targetLon], 14);
+      volunteerMapInstance = L.map('volunteerLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([targetLat, targetLon], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(volunteerMapInstance);
     }
 
@@ -805,14 +859,14 @@ async function updateVolunteerLocationConvergence() {
 
     // Yellow Pin: Volunteer (You)
     if (!volunteerMarkers.volunteer) {
-      volunteerMarkers.volunteer = L.marker([lastKnownCoords.latitude, lastKnownCoords.longitude], {
+      volunteerMarkers.volunteer = L.marker([myCoords.latitude, myCoords.longitude], {
         icon: createLeafletCustomPin('volunteer', 'You (Volunteer)')
       }).addTo(volunteerMapInstance).bindPopup("🟡 <b>You (Volunteer)</b>");
     } else {
-      volunteerMarkers.volunteer.setLatLng([lastKnownCoords.latitude, lastKnownCoords.longitude]);
+      volunteerMarkers.volunteer.setLatLng([myCoords.latitude, myCoords.longitude]);
     }
 
-    // Blue Pin: Live Command HQ
+    // Blue Pin: Command HQ
     if (hasCommandAssistance) {
       const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
       if (!volunteerMarkers.command) {
@@ -852,17 +906,18 @@ async function checkVictimAidStatus() {
     return;
   }
 
-  const [myLocRes, missionsRes, cmdHQ] = await Promise.all([
+  const [myLocRes, missionsRes, cmdHQ, myCurrentGps] = await Promise.all([
     supabase.from("locations").select("latitude, longitude").eq("user_id", userId).order("created_at", { ascending: false }).maybeSingle(),
     supabase.from("rescue_missions").select("*").eq("target_user_id", String(userId)).eq("status", "EN_ROUTE"),
-    getLiveCommandHQCoords()
+    getLiveCommandHQCoords(),
+    getCoordinates()
   ]);
 
   const myLoc = myLocRes.data;
   const missions = missionsRes.data || [];
 
-  const vicLat = myLoc ? Number(myLoc.latitude) : lastKnownCoords.latitude;
-  const vicLon = myLoc ? Number(myLoc.longitude) : lastKnownCoords.longitude;
+  const vicLat = myLoc ? Number(myLoc.latitude) : myCurrentGps.latitude;
+  const vicLon = myLoc ? Number(myLoc.longitude) : myCurrentGps.longitude;
 
   if (missions.length > 0) {
     wrapper.style.display = "flex";
@@ -874,7 +929,7 @@ async function checkVictimAidStatus() {
 
     // Persistent Leaflet Map for Victim
     if (!victimMapInstance) {
-      victimMapInstance = L.map('victimLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLat, vicLon], 14);
+      victimMapInstance = L.map('victimLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLat, vicLon], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(victimMapInstance);
     }
 
@@ -887,7 +942,7 @@ async function checkVictimAidStatus() {
       victimMarkers.victim.setLatLng([vicLat, vicLon]);
     }
 
-    // Command Center Pin (Live HQ GPS)
+    // Command Center Pin
     if (hasCommand) {
       const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
       if (!victimMarkers.command) {
@@ -1149,7 +1204,7 @@ window.addEventListener("DOMContentLoaded", () => {
     nextPlane = temp;
   }, 13000);
 
-  // Staff Authentication & Live HQ Registration
+  // Staff Authentication & Live Dynamic HQ Registration
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
     staffAuthForm.addEventListener("submit", async (e) => {
@@ -1159,7 +1214,6 @@ window.addEventListener("DOMContentLoaded", () => {
       if (enteredCode === STAFF_PASSCODE) {
         sessionStorage.setItem("staffAuthenticated", "true");
 
-        // Immediately sync this device's live hardware location as the Command HQ position
         const currentGps = await getCoordinates();
         await supabase.from("command_center_location").upsert({
           id: 'PRIMARY_HQ',
