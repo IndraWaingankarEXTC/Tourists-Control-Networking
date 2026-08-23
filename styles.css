@@ -248,6 +248,18 @@ body {
 .victim-aid-status-box strong { font-size: 15px; color: #e0f2fe; display: block; }
 .victim-aid-status-box p { font-size: 12px; color: #bae6fd; margin-top: 2px; }
 
+/* WhatsApp Style Live Location Window */
+.whatsapp-live-map-window {
+  width: 100%;
+  height: 240px;
+  border-radius: 16px;
+  border: 2px solid rgba(56, 189, 248, 0.6);
+  margin: 14px 0 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
 .victim-contacts-list {
   display: flex;
   flex-direction: column;
@@ -463,7 +475,7 @@ body {
 /* Multi-Radar Grid Container */
 .multi-radar-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
   padding: 15px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
@@ -479,7 +491,7 @@ body {
   border-radius: 18px;
   border: 1px solid rgba(56, 189, 248, 0.3);
   width: 100%;
-  max-width: 320px;
+  max-width: 360px;
 }
 
 .radar-target-title {
@@ -490,71 +502,40 @@ body {
   text-align: center;
 }
 
-.radar-hud-screen {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  border: 2px solid rgba(56, 189, 248, 0.7);
-  background: radial-gradient(circle, rgba(14, 50, 80, 0.85) 0%, rgba(5, 20, 35, 0.95) 100%);
-  position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
-}
-
-.volunteer-radar-box {
+/* WhatsApp Custom Map Marker Styles */
+.custom-map-pin {
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin: 12px 0;
 }
 
-.volunteer-radar-screen, .victim-radar-screen {
-  width: 190px !important;
-  height: 190px !important;
-}
-
-.radar-crosshair-x { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(255, 255, 255, 0.2); }
-.radar-crosshair-y { position: absolute; left: 50%; top: 0; height: 100%; width: 1px; background: rgba(255, 255, 255, 0.2); }
-.radar-circle-1 { position: absolute; top: 25%; left: 25%; width: 50%; height: 50%; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.25); }
-.radar-circle-2 { position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.15); }
-
-/* TRI-COLOR STANDARDIZED BLIPS */
-.radar-blip {
-  position: absolute;
-  width: 14px;
-  height: 14px;
+.pin-inner {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: all 0.5s ease;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(0,0,0,0.8);
 }
 
-.blip-victim { 
-  background: #ff3333; 
-  box-shadow: 0 0 14px #ff3333; 
-  animation: pulseBlip 0.8s infinite alternate; 
+.pin-victim {
+  background: #ff3333;
+  box-shadow: 0 0 14px #ff3333;
+  animation: pulsePin 0.9s infinite alternate;
 }
 
-.blip-command { 
-  background: #00d4ff; 
-  box-shadow: 0 0 14px #00d4ff; 
+.pin-command {
+  background: #00d4ff;
+  box-shadow: 0 0 14px #00d4ff;
 }
 
-.blip-volunteer { 
-  background: #ffd000; 
-  box-shadow: 0 0 14px #ffd000; 
+.pin-volunteer {
+  background: #ffd000;
+  box-shadow: 0 0 14px #ffd000;
 }
 
-@keyframes pulseBlip {
-  from { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
-  to { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
-}
-
-.radar-telemetry-text {
-  margin-top: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #38bdf8;
-  font-family: monospace;
-  text-align: center;
+@keyframes pulsePin {
+  from { transform: scale(0.85); }
+  to { transform: scale(1.3); }
 }
 
 .responder-item {
@@ -646,7 +627,7 @@ body {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  width: 290px;
+  width: 320px;
   background: var(--theme-modal-bg);
   border: 1px solid var(--theme-accent);
   backdrop-filter: blur(25px);
