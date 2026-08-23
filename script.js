@@ -19,25 +19,28 @@ let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 let lastKnownCoords = { latitude: 18.9894, longitude: 73.1175 };
 
+// Active Leaflet Map Instances Cache
+let victimMapInstance = null;
+let victimMapMarkers = {};
+let volunteerMapInstance = null;
+let volunteerMapMarkers = {};
+let staffMapInstances = {};
+
 // ==========================================
-// 2. CONTINUOUS HARDWARE GPS TRACKER
+// 2. HARDWARE GPS WATCHER & LIVE SYNC
 // ==========================================
 function startContinuousLocationSync() {
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported by device.");
-    return;
-  }
+  if (!navigator.geolocation) return;
 
   navigator.geolocation.watchPosition(
     async (position) => {
       lastKnownCoords = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
+        latitude: Number(position.coords.latitude),
+        longitude: Number(position.coords.longitude)
       };
 
       const userId = localStorage.getItem("touristSafetyUserId");
       if (userId) {
-        // Upsert latest location to database
         await supabase.from("locations").insert({
           user_id: userId,
           latitude: lastKnownCoords.latitude,
@@ -45,19 +48,29 @@ function startContinuousLocationSync() {
         });
       }
     },
-    (err) => {
-      console.warn("Continuous GPS Error:", err.message);
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 10000
-    }
+    (err) => console.warn("GPS lookup note:", err.message),
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 8000 }
   );
 }
 
-// Start GPS polling immediately
 startContinuousLocationSync();
+
+async function getCoordinates() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(lastKnownCoords);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        lastKnownCoords = {
+          latitude: Number(pos.coords.latitude),
+          longitude: Number(pos.coords.longitude)
+        };
+        resolve(lastKnownCoords);
+      },
+      () => resolve(lastKnownCoords),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 3000 }
+    );
+  });
+}
 
 // ==========================================
 // 3. SYNTHESIZED EMERGENCY SIREN
@@ -121,7 +134,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 4. ROUTE OPTIMIZATION, DISTANCE & ETA
+// 4. DISTANCE, BEARING & MAP UTILITIES
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
@@ -141,72 +154,49 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
   const y = Math.sin(dLon) * Math.cos(lat2 * (Math.PI / 180));
   const x =
     Math.cos(lat1 * (Math.PI / 180)) * Math.sin(lat2 * (Math.PI / 180)) -
-    Math.sin(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.cos(dLon);
+    Math.sin(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.cos(dLon);
   let brng = Math.atan2(y, x) * (180 / Math.PI);
   return (brng + 360) % 360;
 }
 
-/**
- * Calculates optimal safe road distance and travel ETA:
- * Applies 1.30x road curvature factor for real-world safe navigation.
- * Uses average vehicle response speed: 40 km/h (urban/rural mixed).
- */
 function calculateRouteAndETA(straightDistanceKm) {
-  const safeRoadDistance = straightDistanceKm * 1.30;
+  const roadDistance = straightDistanceKm * 1.35;
   const avgSpeedKmh = 40.0;
-  const timeInHours = safeRoadDistance / avgSpeedKmh;
-  const timeInMinutes = Math.ceil(timeInHours * 60);
+  const timeInMinutes = Math.ceil((roadDistance / avgSpeedKmh) * 60);
 
   let etaText = "";
   if (straightDistanceKm < 0.05) {
-    etaText = "Under 1 min (Arrived / Immediate Proximity)";
+    etaText = "Arrived (Same Spot)";
   } else if (timeInMinutes < 60) {
-    etaText = `~${timeInMinutes} min (ETA)`;
+    etaText = `~${timeInMinutes} min driving`;
   } else {
     const hrs = Math.floor(timeInMinutes / 60);
     const mins = timeInMinutes % 60;
-    etaText = `~${hrs} hr ${mins} min (ETA)`;
+    etaText = `~${hrs} hr ${mins} min driving`;
   }
 
-  return {
-    roadDistanceKm: safeRoadDistance,
-    etaText: etaText
-  };
+  return { roadDistanceKm: roadDistance, etaText: etaText };
 }
 
 function formatDistance(distKm) {
-  if (distKm < 0.02) return "0 meters (Same Location)";
-  if (distKm < 1.0) return `${Math.round(distKm * 1000)} meters`;
+  if (distKm < 0.02) return "0 m (Same Spot)";
+  if (distKm < 1.0) return `${Math.round(distKm * 1000)} m`;
   return `${distKm.toFixed(2)} km`;
 }
 
-/**
- * Auto-scaling Polar Projection:
- * Automatically scales the radar view up to 60+ km so far-away responders 
- * stay on the radar circles instead of breaking the bounds.
- */
-function projectGpsToRadar(vicLat, vicLon, targetLat, targetLon) {
-  const distKm = calculateDistanceKm(vicLat, vicLon, targetLat, targetLon);
-  
-  if (distKm <= 0.015) {
-    return { top: "50%", left: "50%", distKm: 0 };
-  }
+function getGoogleMapsRouteUrl(originLat, originLon, destLat, destLon) {
+  return `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${destLat},${destLon}&travelmode=driving`;
+}
 
-  const dynamicScaleKm = Math.max(distKm * 1.25, 5.0); // Dynamic scale boundary
-  const bearing = calculateBearing(vicLat, vicLon, targetLat, targetLon);
-  const bearingRad = bearing * (Math.PI / 180);
-  
-  const normalizedDist = Math.min(distKm / dynamicScaleKm, 1.0);
-  const radiusPercent = normalizedDist * 40;
-
-  const deltaX = radiusPercent * Math.sin(bearingRad);
-  const deltaY = -radiusPercent * Math.cos(bearingRad);
-
-  return {
-    top: `${(50 + deltaY).toFixed(1)}%`,
-    left: `${(50 + deltaX).toFixed(1)}%`,
-    distKm: distKm
-  };
+// Leaflet HTML custom pin maker
+function createLeafletCustomPin(type, title) {
+  return L.divIcon({
+    className: 'custom-map-pin',
+    html: `<div class="pin-inner pin-${type}" title="${title}"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
+  });
 }
 
 // ==========================================
@@ -321,7 +311,7 @@ window.closeModal = function() {
 };
 
 // ==========================================
-// 6. STAFF COMMAND ROSTER, RADARS & DISPATCH
+// 6. STAFF COMMAND MATRIX & WHATSAPP LIVE MAPS
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -386,7 +376,7 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. FULL-WIDTH TABLE
+    // 2. FULL-WIDTH ROSTER TABLE
     tableBody.innerHTML = profiles.map(p => {
       const isCriticalSOS = activeSOSUserIds.has(String(p.id));
       let isNearbyResponder = false;
@@ -396,7 +386,7 @@ window.loadStaffMonitoringData = async function() {
         if (myLoc) {
           activeSOSEvents.forEach(sos => {
             const dist = calculateDistanceKm(myLoc.latitude, myLoc.longitude, sos.latitude, sos.longitude);
-            if (dist <= 15.0) isNearbyResponder = true;
+            if (dist <= 25.0) isNearbyResponder = true;
           });
         }
       }
@@ -415,7 +405,7 @@ window.loadStaffMonitoringData = async function() {
       const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
       const coordsDisplay = myLoc && myLoc.latitude 
         ? `${Number(myLoc.latitude).toFixed(4)}, ${Number(myLoc.longitude).toFixed(4)}` 
-        : "GPS Syncing...";
+        : `${lastKnownCoords.latitude.toFixed(4)}, ${lastKnownCoords.longitude.toFixed(4)}`;
 
       return `
         <tr class="${rowClass}">
@@ -431,7 +421,7 @@ window.loadStaffMonitoringData = async function() {
       `;
     }).join("");
 
-    // 3. MULTI-CASE LIVE LOCATION PROJECTION & ETA
+    // 3. WHATSAPP-STYLE LIVE LOCATION MAP WINDOWS FOR STAFF
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -460,53 +450,86 @@ window.loadStaffMonitoringData = async function() {
 
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
-
         const vicLoc = userLocationMap[vicId] || lastKnownCoords;
 
-        // Volunteer Projection & ETA
-        let volBlipHTML = "";
         let volDistanceText = "";
+        let volMapsUrl = "#";
         if (volunteerMissions.length > 0) {
           const firstVol = volunteerMissions[0];
           const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
-          const volProj = projectGpsToRadar(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
-          const routeInfo = calculateRouteAndETA(volProj.distKm);
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
+          const routeInfo = calculateRouteAndETA(distKm);
           const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer" };
 
-          volBlipHTML = `<div class="radar-blip blip-volunteer" style="top: ${volProj.top}; left: ${volProj.left};" title="Volunteer: ${volProfile.name}"></div>`;
-          volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(volProj.distKm)} • ${routeInfo.etaText}`;
+          volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(distKm)} • ${routeInfo.etaText}`;
+          volMapsUrl = getGoogleMapsRouteUrl(volLoc.latitude, volLoc.longitude, vicLoc.latitude, vicLoc.longitude);
         }
 
-        // Command Center Projection & ETA
-        let cmdBlipHTML = "";
         let cmdDistanceText = "";
+        let cmdMapsUrl = "#";
         if (hasCommand) {
-          const cmdProj = projectGpsToRadar(vicLoc.latitude, vicLoc.longitude, 18.9894, 73.1175);
-          const cmdRoute = calculateRouteAndETA(cmdProj.distKm);
-          cmdBlipHTML = `<div class="radar-blip blip-command" style="top: ${cmdProj.top}; left: ${cmdProj.left};" title="Command Center Unit"></div>`;
-          cmdDistanceText = `Command Unit: ${formatDistance(cmdProj.distKm)} • ${cmdRoute.etaText}`;
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, 18.9894, 73.1175);
+          const cmdRoute = calculateRouteAndETA(distKm);
+          cmdDistanceText = `Command Unit: ${formatDistance(distKm)} • ${cmdRoute.etaText}`;
+          cmdMapsUrl = getGoogleMapsRouteUrl(18.9894, 73.1175, vicLoc.latitude, vicLoc.longitude);
         }
 
-        // Google Maps Directions link to victim's coordinates
-        const mapsLink = `https://www.google.com/maps/dir/?api=1&destination=${vicLoc.latitude},${vicLoc.longitude}`;
+        const mapContainerId = `staffCaseMap_${vicId}`;
+
+        // Initialize and update Leaflet Map in setTimeout after DOM insert
+        setTimeout(() => {
+          let map = staffMapInstances[vicId];
+          const mapEl = document.getElementById(mapContainerId);
+          if (!mapEl) return;
+
+          if (!map) {
+            map = L.map(mapContainerId, { zoomControl: false }).setView([vicLoc.latitude, vicLoc.longitude], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            staffMapInstances[vicId] = map;
+          }
+
+          const bounds = [[vicLoc.latitude, vicLoc.longitude]];
+
+          // Red Dot (Victim)
+          L.marker([vicLoc.latitude, vicLoc.longitude], {
+            icon: createLeafletCustomPin('victim', `Victim: ${vic.name}`)
+          }).addTo(map);
+
+          // Blue Dot (Command)
+          if (hasCommand) {
+            const cmdPos = [18.9894, 73.1175];
+            bounds.push(cmdPos);
+            L.marker(cmdPos, {
+              icon: createLeafletCustomPin('command', 'Command Center Unit')
+            }).addTo(map);
+          }
+
+          // Yellow Dot (Volunteer)
+          if (volunteerMissions.length > 0) {
+            const firstVol = volunteerMissions[0];
+            const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
+            const volPos = [volLoc.latitude, volLoc.longitude];
+            bounds.push(volPos);
+            L.marker(volPos, {
+              icon: createLeafletCustomPin('volunteer', 'Volunteer Responder')
+            }).addTo(map);
+          }
+
+          map.fitBounds(bounds, { padding: [35, 35], maxZoom: 16 });
+          map.invalidateSize();
+        }, 100);
 
         return `
           <div class="radar-card-unit">
             <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name}</div>
-            <div class="radar-hud-screen">
-              <div class="radar-crosshair-x"></div>
-              <div class="radar-crosshair-y"></div>
-              <div class="radar-circle-1"></div>
-              <div class="radar-circle-2"></div>
-              <!-- Red Center: Victim -->
-              <div class="radar-blip blip-victim" style="top: 50%; left: 50%;" title="Victim: ${vic.name}"></div>
-              ${cmdBlipHTML}
-              ${volBlipHTML}
-            </div>
+            <div id="${mapContainerId}" class="whatsapp-live-map-window" style="height:190px;"></div>
             <div class="radar-telemetry-text" style="line-height: 1.4; font-size: 11px;">
               ${cmdDistanceText ? `<div style="color:#00d4ff;">🔵 ${cmdDistanceText}</div>` : ''}
               ${volDistanceText ? `<div style="color:#ffd000;">🟡 ${volDistanceText}</div>` : ''}
-              <a href="${mapsLink}" target="_blank" style="display:inline-block; margin-top:6px; color:#fff; background:rgba(255,255,255,0.2); padding:3px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Open in Google Maps</a>
+              <div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">
+                ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
+                ${volunteerMissions.length > 0 ? `<a href="${volMapsUrl}" target="_blank" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">🗺️ Volunteer Route</a>` : ''}
+              </div>
             </div>
           </div>
         `;
@@ -563,7 +586,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 7. VOLUNTEER PROMPT & NAVIGATION RADAR
+// 7. VOLUNTEER PROMPT & WHATSAPP LIVE MAP
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -705,37 +728,59 @@ async function updateVolunteerLocationConvergence() {
   const targetLat = Number(activeRescueTarget.latitude);
   const targetLon = Number(activeRescueTarget.longitude);
 
-  const volProj = projectGpsToRadar(targetLat, targetLon, lastKnownCoords.latitude, lastKnownCoords.longitude);
+  const distKm = calculateDistanceKm(lastKnownCoords.latitude, lastKnownCoords.longitude, targetLat, targetLon);
   const bearing = calculateBearing(lastKnownCoords.latitude, lastKnownCoords.longitude, targetLat, targetLon);
-  const routeInfo = calculateRouteAndETA(volProj.distKm);
+  const routeInfo = calculateRouteAndETA(distKm);
 
-  const myBlip = document.getElementById("volHudMyBlip");
-  const vicBlip = document.getElementById("volHudVictimBlip");
-  const cmdBlip = document.getElementById("volHudCommandBlip");
-
-  if (vicBlip) { vicBlip.style.top = "50%"; vicBlip.style.left = "50%"; }
-  if (myBlip) { myBlip.style.top = volProj.top; myBlip.style.left = volProj.left; }
-
-  if (cmdBlip) {
-    if (hasCommandAssistance) {
-      const cmdProj = projectGpsToRadar(targetLat, targetLon, 18.9894, 73.1175);
-      cmdBlip.style.display = "block";
-      cmdBlip.style.top = cmdProj.top;
-      cmdBlip.style.left = cmdProj.left;
-    } else {
-      cmdBlip.style.display = "none";
+  // Initialize and Update Volunteer Live Map Window
+  const mapContainer = document.getElementById("volunteerLiveMap");
+  if (mapContainer) {
+    if (!volunteerMapInstance) {
+      volunteerMapInstance = L.map('volunteerLiveMap', { zoomControl: false }).setView([lastKnownCoords.latitude, lastKnownCoords.longitude], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(volunteerMapInstance);
     }
+
+    const bounds = [
+      [lastKnownCoords.latitude, lastKnownCoords.longitude],
+      [targetLat, targetLon]
+    ];
+
+    // Clear old markers
+    Object.values(volunteerMapMarkers).forEach(m => volunteerMapInstance.removeLayer(m));
+    volunteerMapMarkers = {};
+
+    // Yellow Dot: Volunteer (You)
+    volunteerMapMarkers.volunteer = L.marker([lastKnownCoords.latitude, lastKnownCoords.longitude], {
+      icon: createLeafletCustomPin('volunteer', 'You (Volunteer)')
+    }).addTo(volunteerMapInstance);
+
+    // Red Dot: Victim
+    volunteerMapMarkers.victim = L.marker([targetLat, targetLon], {
+      icon: createLeafletCustomPin('victim', 'Person in Distress')
+    }).addTo(volunteerMapInstance);
+
+    // Blue Dot: Command Center (if en route)
+    if (hasCommandAssistance) {
+      const cmdPos = [18.9894, 73.1175];
+      bounds.push(cmdPos);
+      volunteerMapMarkers.command = L.marker(cmdPos, {
+        icon: createLeafletCustomPin('command', 'Central Command Unit')
+      }).addTo(volunteerMapInstance);
+    }
+
+    volunteerMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    volunteerMapInstance.invalidateSize();
   }
 
   const distEl = document.getElementById("compassDistance");
   const brgEl = document.getElementById("compassBearing");
 
-  if (distEl) distEl.innerText = `${formatDistance(volProj.distKm)} • ${routeInfo.etaText}`;
+  if (distEl) distEl.innerText = `${formatDistance(distKm)} • ${routeInfo.etaText}`;
   if (brgEl) brgEl.innerText = `${Math.round(bearing)}°`;
 }
 
 // ==========================================
-// 8. VICTIM SCREEN: DUAL ETA & DIRECT CONTACTS
+// 8. VICTIM SCREEN: DUAL ETA & WHATSAPP LIVE MAP
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -773,33 +818,46 @@ async function checkVictimAidStatus() {
 
     let responderContactsHTML = "";
 
-    // 1. Calculate Command Center Live Telemetry & ETA
-    const cmdBlip = document.getElementById("vicScreenCommandBlip");
-    if (hasCommand) {
-      const cmdProj = projectGpsToRadar(vicLat, vicLon, 18.9894, 73.1175);
-      const cmdRoute = calculateRouteAndETA(cmdProj.distKm);
+    // Initialize/Update Victim Leaflet Map Window
+    if (!victimMapInstance) {
+      victimMapInstance = L.map('victimLiveMap', { zoomControl: false }).setView([vicLat, vicLon], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(victimMapInstance);
+    }
 
-      if (cmdBlip) {
-        cmdBlip.style.display = "block";
-        cmdBlip.style.top = cmdProj.top;
-        cmdBlip.style.left = cmdProj.left;
-      }
+    const bounds = [[vicLat, vicLon]];
+
+    // Clear old markers
+    Object.values(victimMapMarkers).forEach(m => victimMapInstance.removeLayer(m));
+    victimMapMarkers = {};
+
+    // Red Dot: Victim (You)
+    victimMapMarkers.victim = L.marker([vicLat, vicLon], {
+      icon: createLeafletCustomPin('victim', 'You (Distress Signal)')
+    }).addTo(victimMapInstance);
+
+    // Command Center Telemetry & Pin
+    if (hasCommand) {
+      const cmdPos = [18.9894, 73.1175];
+      bounds.push(cmdPos);
+      victimMapMarkers.command = L.marker(cmdPos, {
+        icon: createLeafletCustomPin('command', 'Central Command Unit')
+      }).addTo(victimMapInstance);
+
+      const distKm = calculateDistanceKm(vicLat, vicLon, 18.9894, 73.1175);
+      const cmdRoute = calculateRouteAndETA(distKm);
 
       responderContactsHTML += `
         <div class="victim-contact-pill">
           <div>
             🔵 <strong>Central Command Unit:</strong> Dispatched<br>
-            <small style="color: #00d4ff; font-weight: 600;">Distance: ${formatDistance(cmdProj.distKm)} • ETA: ${cmdRoute.etaText}</small>
+            <small style="color: #00d4ff; font-weight: 600;">Distance: ${formatDistance(distKm)} • ETA: ${cmdRoute.etaText}</small>
           </div>
           <span style="color: #00d4ff; font-weight: 600; font-size: 11px;">Radio Grid Active</span>
         </div>
       `;
-    } else if (cmdBlip) {
-      cmdBlip.style.display = "none";
     }
 
-    // 2. Calculate Volunteer Live Telemetry & ETA
-    const volBlip = document.getElementById("vicScreenVolunteerBlip");
+    // Volunteer Telemetry, Pin & Google Navigation
     if (volunteerMissions.length > 0) {
       const volIds = volunteerMissions.map(m => m.volunteer_id);
       const [volProfilesRes, volLocsRes] = await Promise.all([
@@ -815,46 +873,44 @@ async function checkVictimAidStatus() {
         const vLat = foundLoc ? Number(foundLoc.latitude) : vicLat;
         const vLon = foundLoc ? Number(foundLoc.longitude) : vicLon;
 
-        const volProj = projectGpsToRadar(vicLat, vicLon, vLat, vLon);
-        const volRoute = calculateRouteAndETA(volProj.distKm);
+        const volPos = [vLat, vLon];
+        bounds.push(volPos);
 
-        if (volBlip) {
-          volBlip.style.display = "block";
-          volBlip.style.top = volProj.top;
-          volBlip.style.left = volProj.left;
-        }
+        victimMapMarkers.volunteer = L.marker(volPos, {
+          icon: createLeafletCustomPin('volunteer', `Volunteer: ${vp.name}`)
+        }).addTo(victimMapInstance);
 
-        const navToVolunteer = `https://www.google.com/maps/dir/?api=1&destination=${vLat},${vLon}`;
+        const distKm = calculateDistanceKm(vicLat, vicLon, vLat, vLon);
+        const volRoute = calculateRouteAndETA(distKm);
+        const googleMapsNavUrl = getGoogleMapsRouteUrl(vLat, vLon, vicLat, vicLon);
 
         responderContactsHTML += `
           <div class="victim-contact-pill">
             <div>
               🟡 <strong>${vp.name}</strong> (Volunteer En Route)<br>
-              <small style="color: #ffd000; font-weight: 600;">Distance: ${formatDistance(volProj.distKm)} • ETA: ${volRoute.etaText}</small>
+              <small style="color: #ffd000; font-weight: 600;">Distance: ${formatDistance(distKm)} • ETA: ${volRoute.etaText}</small>
             </div>
             <div style="display:flex; gap:6px;">
               <a href="tel:${vp.phone}">📞 Call</a>
-              <a href="${navToVolunteer}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ Maps</a>
+              <a href="${googleMapsNavUrl}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ Maps</a>
             </div>
           </div>
         `;
       });
-    } else if (volBlip) {
-      volBlip.style.display = "none";
     }
+
+    // Auto-fit live bounds to encompass victim, volunteer, and command unit
+    victimMapInstance.fitBounds(bounds, { padding: [35, 35], maxZoom: 16 });
+    victimMapInstance.invalidateSize();
 
     if (contactsContainer) contactsContainer.innerHTML = responderContactsHTML;
 
-    // Red Dot centered permanently
-    const vicBlip = document.getElementById("vicScreenVictimBlip");
-    if (vicBlip) { vicBlip.style.top = "50%"; vicBlip.style.left = "50%"; }
-
     if (hasCommand && volunteerMissions.length > 0) {
       title.innerText = "🚨 Aid Dispatched (Command Center + Volunteer)";
-      details.innerText = "Both Central Command and nearby volunteer responders are actively converging on your position.";
+      details.innerText = "Both Central Command and nearby volunteer responders are actively converging on your location.";
     } else if (hasCommand) {
       title.innerText = "🚨 Central Command Unit Dispatched";
-      details.innerText = "Official command response units are navigating to your GPS location.";
+      details.innerText = "Official command response units are navigating to your GPS coordinates.";
     } else {
       title.innerText = "⚡ Volunteer Responder En Route";
       details.innerText = "A registered volunteer responder has accepted your SOS and is on their way.";
@@ -884,7 +940,6 @@ window.handleSOSToggle = async function() {
     triggerVisualAlarm(true);
     siren.start();
 
-    // Cancel any active outgoing missions if this user was volunteering
     await supabase
       .from("rescue_missions")
       .update({ status: "CANCELLED" })
@@ -898,10 +953,12 @@ window.handleSOSToggle = async function() {
       supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
     ]);
 
+    const coords = await getCoordinates();
+
     await supabase.from("sos_events").insert({
       user_id: userId,
-      latitude: lastKnownCoords.latitude,
-      longitude: lastKnownCoords.longitude,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
       status: "ACTIVE"
     });
 
@@ -967,7 +1024,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 11. BACKGROUND THEME ENGINE & FORM LISTENERS
+// 11. BACKGROUND THEME ENGINE & LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -1117,10 +1174,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
         localStorage.setItem("touristSafetyUserId", data.id);
 
+        const coords = await getCoordinates();
         await supabase.from("locations").insert({
           user_id: data.id,
-          latitude: lastKnownCoords.latitude,
-          longitude: lastKnownCoords.longitude
+          latitude: coords.latitude,
+          longitude: coords.longitude
         });
 
         document.getElementById("registrationPage").style.display = "none";
