@@ -108,7 +108,7 @@
         </div>
 
         <!-- 1B: LOGGED-IN ACTIVE PROFILE DASHBOARD -->
-        <div id="loggedInSection" class="user-state-container" style="display: none; width: 100%; max-width: 650px;">
+        <div id="loggedInSection" class="user-state-container" style="display: none; width: 100%; max-width: 680px;">
           
           <div class="session-badge">
             <div class="badge-text">
@@ -118,13 +118,32 @@
             <button class="switch-user-btn" onclick="signOutCurrentUser()">Switch / Log Out</button>
           </div>
 
-          <!-- Victim Live Aid Notification Box -->
-          <div id="victimAidAlertBox" class="victim-aid-status-box" style="display: none;">
-            <div class="aid-pulse-dot"></div>
-            <div>
-              <strong id="victimAidTitle">Assistance En Route</strong>
-              <p id="victimAidDetails">Help has been dispatched to your location.</p>
+          <!-- Victim Live Location Tracker & Direct Responder Box -->
+          <div id="victimRadarWrapper" class="victim-aid-status-box" style="display: none; flex-direction: column; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+              <div class="aid-pulse-dot"></div>
+              <div>
+                <strong id="victimAidTitle">Assistance En Route</strong>
+                <p id="victimAidDetails">Help has been dispatched to your location.</p>
+              </div>
             </div>
+
+            <!-- Victim's Integrated Live Location Screen -->
+            <div class="radar-hud-screen victim-radar-screen" style="margin: 16px 0 10px;">
+              <div class="radar-crosshair-x"></div>
+              <div class="radar-crosshair-y"></div>
+              <div class="radar-circle-1"></div>
+              <div class="radar-circle-2"></div>
+              <!-- Red Dot: Victim (You) -->
+              <div id="vicScreenVictimBlip" class="radar-blip blip-victim" title="You (In Distress)"></div>
+              <!-- Blue Dot: Command Center -->
+              <div id="vicScreenCommandBlip" class="radar-blip blip-command" style="display: none;" title="Central Command Unit"></div>
+              <!-- Yellow Dot: Volunteer -->
+              <div id="vicScreenVolunteerBlip" class="radar-blip blip-volunteer" style="display: none;" title="Volunteer Responder"></div>
+            </div>
+
+            <!-- Direct Responder Contact Cards -->
+            <div id="victimResponderContacts" class="victim-contacts-list"></div>
           </div>
 
           <!-- SOS Trigger -->
@@ -199,21 +218,17 @@
         </div>
 
         <!-- Multi-Victim Command Center Emergency Dispatch Queue -->
-        <div id="commandDispatchQueue" class="command-dispatch-queue" style="display: none;">
-          <!-- Dynamically populated with individual prompt cards for each active distress signal -->
-        </div>
+        <div id="commandDispatchQueue" class="command-dispatch-queue" style="display: none;"></div>
 
-        <!-- Multi-Radar Field Deployment & Convergence Status Box -->
+        <!-- Multi-Case Field Deployment & Live Location Box -->
         <div class="responders-live-panel" id="respondersLivePanel">
           <div class="panel-header">
-            <strong>⚡ Field Deployment & Convergence Status</strong>
+            <strong>⚡ Field Deployment & Live Location Tracker</strong>
             <span id="responderCountBadge">0 Responders En Route</span>
           </div>
           
-          <!-- Dynamic Grid Container for Multiple Radars -->
-          <div id="staffMultiRadarGrid" class="multi-radar-grid" style="display: none;">
-            <!-- Dynamically populated with one radar per active rescue mission -->
-          </div>
+          <!-- Dynamic Grid for Multiple Live Location Screens -->
+          <div id="staffMultiRadarGrid" class="multi-radar-grid" style="display: none;"></div>
 
           <div class="panel-content" id="respondersList" style="margin-top: 10px;">
             <em>No active rescue missions underway. Standing by for SOS alerts.</em>
@@ -250,7 +265,7 @@
       </section>
     </main>
 
-    <!-- VOLUNTEER RAPID DISPATCH HUD (UPGRADED TO TACTICAL RADAR) -->
+    <!-- VOLUNTEER RAPID DISPATCH HUD -->
     <div id="volunteerHudWidget" class="volunteer-hud" style="display: none;">
       <!-- STEP A: RESCUE INVITATION -->
       <div id="hudDispatchPrompt">
@@ -258,17 +273,17 @@
           <span class="hud-pulse"></span>
           <strong>EMERGENCY DISPATCH</strong>
         </div>
-        <p id="hudPromptText">A nearby tourist is in distress and has triggered an active SOS! Can you assist?</p>
+        <p id="hudPromptText">A nearby person is in distress and has triggered an active SOS! Can you assist?</p>
         <div class="hud-actions">
           <button class="hud-btn hud-yes-btn" onclick="acceptRescueMission()">✓ YES, ASSIST</button>
           <button class="hud-btn hud-no-btn" onclick="declineRescueMission()">✕ NO</button>
         </div>
       </div>
 
-      <!-- STEP B: VOLUNTEER TACTICAL RADAR SCREEN -->
+      <!-- STEP B: VOLUNTEER LIVE LOCATION TRACKER -->
       <div id="hudCompassView" style="display: none;">
         <div class="hud-header">
-          <strong>TACTICAL RADAR</strong>
+          <strong>LIVE LOCATION TRACKER</strong>
           <button class="hud-close-btn" onclick="closeCompassView()">✕</button>
         </div>
         <div class="volunteer-radar-box">
@@ -277,8 +292,12 @@
             <div class="radar-crosshair-y"></div>
             <div class="radar-circle-1"></div>
             <div class="radar-circle-2"></div>
+            <!-- Red Dot: Victim -->
             <div id="volHudVictimBlip" class="radar-blip blip-victim" title="Victim"></div>
-            <div id="volHudMyBlip" class="radar-blip blip-volunteer" title="You"></div>
+            <!-- Blue Dot: Command Center -->
+            <div id="volHudCommandBlip" class="radar-blip blip-command" style="display: none;" title="Central Command Unit"></div>
+            <!-- Yellow Dot: You (Volunteer) -->
+            <div id="volHudMyBlip" class="radar-blip blip-volunteer" title="You (Volunteer)"></div>
           </div>
         </div>
         <div class="compass-telemetry">
