@@ -19,12 +19,15 @@ let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 let lastKnownCoords = { latitude: 18.9894, longitude: 73.1175 };
 
-// Active Leaflet Map Instances Cache
+// Persistent Map and Marker Storage
 let victimMapInstance = null;
-let victimMapMarkers = {};
+let victimMarkers = {};
+
 let volunteerMapInstance = null;
-let volunteerMapMarkers = {};
+let volunteerMarkers = {};
+
 let staffMapInstances = {};
+let staffMarkers = {};
 
 // ==========================================
 // 2. HARDWARE GPS WATCHER & LIVE SYNC
@@ -189,7 +192,6 @@ function getGoogleMapsRouteUrl(originLat, originLon, destLat, destLon) {
   return `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${destLat},${destLon}&travelmode=driving`;
 }
 
-// Leaflet HTML custom pin maker
 function createLeafletCustomPin(type, title) {
   return L.divIcon({
     className: 'custom-map-pin',
@@ -311,7 +313,7 @@ window.closeModal = function() {
 };
 
 // ==========================================
-// 6. STAFF COMMAND MATRIX & WHATSAPP LIVE MAPS
+// 6. STAFF COMMAND MATRIX & REAL LIVE MAPS
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -421,7 +423,7 @@ window.loadStaffMonitoringData = async function() {
       `;
     }).join("");
 
-    // 3. WHATSAPP-STYLE LIVE LOCATION MAP WINDOWS FOR STAFF
+    // 3. PERSISTENT LIVE LOCATION MAP INSTANCES FOR COMMAND CENTER
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -444,96 +446,126 @@ window.loadStaffMonitoringData = async function() {
         victimMissionsMap[vicId].push(m);
       });
 
-      multiRadarGrid.innerHTML = Object.keys(victimMissionsMap).map((vicId, index) => {
-        const vic = profileMap[vicId] || { name: 'Person in Distress' };
-        const missions = victimMissionsMap[vicId];
+      const activeCaseIds = Object.keys(victimMissionsMap);
 
+      // Clean up dead maps
+      Object.keys(staffMapInstances).forEach(id => {
+        if (!activeCaseIds.includes(id)) {
+          staffMapInstances[id].remove();
+          delete staffMapInstances[id];
+          delete staffMarkers[id];
+        }
+      });
+
+      // Build DOM scaffolding only if containers are missing
+      activeCaseIds.forEach((vicId, index) => {
+        const mapContainerId = `staffCaseMap_${vicId}`;
+        let card = document.getElementById(`cardWrapper_${vicId}`);
+        const vic = profileMap[vicId] || { name: 'Person in Distress' };
+
+        if (!card) {
+          const cardHTML = `
+            <div id="cardWrapper_${vicId}" class="radar-card-unit">
+              <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name}</div>
+              <div id="${mapContainerId}" class="whatsapp-live-map-window" style="height:190px;"></div>
+              <div id="telemetry_${vicId}" class="radar-telemetry-text" style="line-height: 1.4; font-size: 11px;"></div>
+            </div>
+          `;
+          multiRadarGrid.insertAdjacentHTML('beforeend', cardHTML);
+        }
+
+        // Update map without destroying the DOM canvas
+        const missions = victimMissionsMap[vicId];
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
         const vicLoc = userLocationMap[vicId] || lastKnownCoords;
 
+        let map = staffMapInstances[vicId];
+        if (!map) {
+          map = L.map(mapContainerId, { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLoc.latitude, vicLoc.longitude], 14);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+          staffMapInstances[vicId] = map;
+          staffMarkers[vicId] = {};
+        }
+
+        const bounds = [[vicLoc.latitude, vicLoc.longitude]];
+        const currentMarkers = staffMarkers[vicId];
+
+        // Red Pin: Victim
+        if (!currentMarkers.victim) {
+          currentMarkers.victim = L.marker([vicLoc.latitude, vicLoc.longitude], {
+            icon: createLeafletCustomPin('victim', `Victim: ${vic.name}`)
+          }).addTo(map).bindPopup(`🎯 <b>${vic.name}</b> (In Distress)`);
+        } else {
+          currentMarkers.victim.setLatLng([vicLoc.latitude, vicLoc.longitude]);
+        }
+
+        // Blue Pin: Command Unit
+        let cmdDistanceText = "";
+        let cmdMapsUrl = "#";
+        if (hasCommand) {
+          const cmdPos = [18.9894, 73.1175];
+          bounds.push(cmdPos);
+
+          if (!currentMarkers.command) {
+            currentMarkers.command = L.marker(cmdPos, {
+              icon: createLeafletCustomPin('command', 'Central Command Unit')
+            }).addTo(map).bindPopup("🔵 <b>Central Command Unit</b>");
+          } else {
+            currentMarkers.command.setLatLng(cmdPos);
+          }
+
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, cmdPos[0], cmdPos[1]);
+          const cmdRoute = calculateRouteAndETA(distKm);
+          cmdDistanceText = `Command Unit: ${formatDistance(distKm)} • ${cmdRoute.etaText}`;
+          cmdMapsUrl = getGoogleMapsRouteUrl(cmdPos[0], cmdPos[1], vicLoc.latitude, vicLoc.longitude);
+        } else if (currentMarkers.command) {
+          map.removeLayer(currentMarkers.command);
+          delete currentMarkers.command;
+        }
+
+        // Yellow Pin: Volunteer
         let volDistanceText = "";
         let volMapsUrl = "#";
         if (volunteerMissions.length > 0) {
           const firstVol = volunteerMissions[0];
           const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
-          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
-          const routeInfo = calculateRouteAndETA(distKm);
+          const volPos = [volLoc.latitude, volLoc.longitude];
+          bounds.push(volPos);
+
           const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer" };
 
+          if (!currentMarkers.volunteer) {
+            currentMarkers.volunteer = L.marker(volPos, {
+              icon: createLeafletCustomPin('volunteer', `Volunteer: ${volProfile.name}`)
+            }).addTo(map).bindPopup(`🟡 <b>${volProfile.name}</b> (Volunteer)`);
+          } else {
+            currentMarkers.volunteer.setLatLng(volPos);
+          }
+
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
+          const routeInfo = calculateRouteAndETA(distKm);
           volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(distKm)} • ${routeInfo.etaText}`;
           volMapsUrl = getGoogleMapsRouteUrl(volLoc.latitude, volLoc.longitude, vicLoc.latitude, vicLoc.longitude);
+        } else if (currentMarkers.volunteer) {
+          map.removeLayer(currentMarkers.volunteer);
+          delete currentMarkers.volunteer;
         }
 
-        let cmdDistanceText = "";
-        let cmdMapsUrl = "#";
-        if (hasCommand) {
-          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, 18.9894, 73.1175);
-          const cmdRoute = calculateRouteAndETA(distKm);
-          cmdDistanceText = `Command Unit: ${formatDistance(distKm)} • ${cmdRoute.etaText}`;
-          cmdMapsUrl = getGoogleMapsRouteUrl(18.9894, 73.1175, vicLoc.latitude, vicLoc.longitude);
-        }
-
-        const mapContainerId = `staffCaseMap_${vicId}`;
-
-        // Initialize and update Leaflet Map in setTimeout after DOM insert
-        setTimeout(() => {
-          let map = staffMapInstances[vicId];
-          const mapEl = document.getElementById(mapContainerId);
-          if (!mapEl) return;
-
-          if (!map) {
-            map = L.map(mapContainerId, { zoomControl: false }).setView([vicLoc.latitude, vicLoc.longitude], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-            staffMapInstances[vicId] = map;
-          }
-
-          const bounds = [[vicLoc.latitude, vicLoc.longitude]];
-
-          // Red Dot (Victim)
-          L.marker([vicLoc.latitude, vicLoc.longitude], {
-            icon: createLeafletCustomPin('victim', `Victim: ${vic.name}`)
-          }).addTo(map);
-
-          // Blue Dot (Command)
-          if (hasCommand) {
-            const cmdPos = [18.9894, 73.1175];
-            bounds.push(cmdPos);
-            L.marker(cmdPos, {
-              icon: createLeafletCustomPin('command', 'Command Center Unit')
-            }).addTo(map);
-          }
-
-          // Yellow Dot (Volunteer)
-          if (volunteerMissions.length > 0) {
-            const firstVol = volunteerMissions[0];
-            const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
-            const volPos = [volLoc.latitude, volLoc.longitude];
-            bounds.push(volPos);
-            L.marker(volPos, {
-              icon: createLeafletCustomPin('volunteer', 'Volunteer Responder')
-            }).addTo(map);
-          }
-
-          map.fitBounds(bounds, { padding: [35, 35], maxZoom: 16 });
-          map.invalidateSize();
-        }, 100);
-
-        return `
-          <div class="radar-card-unit">
-            <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name}</div>
-            <div id="${mapContainerId}" class="whatsapp-live-map-window" style="height:190px;"></div>
-            <div class="radar-telemetry-text" style="line-height: 1.4; font-size: 11px;">
-              ${cmdDistanceText ? `<div style="color:#00d4ff;">🔵 ${cmdDistanceText}</div>` : ''}
-              ${volDistanceText ? `<div style="color:#ffd000;">🟡 ${volDistanceText}</div>` : ''}
-              <div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">
-                ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
-                ${volunteerMissions.length > 0 ? `<a href="${volMapsUrl}" target="_blank" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">🗺️ Volunteer Route</a>` : ''}
-              </div>
+        const telemEl = document.getElementById(`telemetry_${vicId}`);
+        if (telemEl) {
+          telemEl.innerHTML = `
+            ${cmdDistanceText ? `<div style="color:#00d4ff;">🔵 ${cmdDistanceText}</div>` : ''}
+            ${volDistanceText ? `<div style="color:#ffd000;">🟡 ${volDistanceText}</div>` : ''}
+            <div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">
+              ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
+              ${volunteerMissions.length > 0 ? `<a href="${volMapsUrl}" target="_blank" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">🗺️ Volunteer Route</a>` : ''}
             </div>
-          </div>
-        `;
-      }).join("");
+          `;
+        }
+
+        map.invalidateSize();
+      });
 
       respondersPanel.innerHTML = activeMissions.map(m => {
         const vic = profileMap[String(m.target_user_id)] || { name: 'Tourist' };
@@ -586,7 +618,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 7. VOLUNTEER PROMPT & WHATSAPP LIVE MAP
+// 7. VOLUNTEER PROMPT & INTERACTIVE LIVE MAP
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -732,43 +764,47 @@ async function updateVolunteerLocationConvergence() {
   const bearing = calculateBearing(lastKnownCoords.latitude, lastKnownCoords.longitude, targetLat, targetLon);
   const routeInfo = calculateRouteAndETA(distKm);
 
-  // Initialize and Update Volunteer Live Map Window
+  // Persistent Volunteer Live Map Window
   const mapContainer = document.getElementById("volunteerLiveMap");
   if (mapContainer) {
     if (!volunteerMapInstance) {
-      volunteerMapInstance = L.map('volunteerLiveMap', { zoomControl: false }).setView([lastKnownCoords.latitude, lastKnownCoords.longitude], 14);
+      volunteerMapInstance = L.map('volunteerLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([targetLat, targetLon], 14);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(volunteerMapInstance);
     }
 
-    const bounds = [
-      [lastKnownCoords.latitude, lastKnownCoords.longitude],
-      [targetLat, targetLon]
-    ];
-
-    // Clear old markers
-    Object.values(volunteerMapMarkers).forEach(m => volunteerMapInstance.removeLayer(m));
-    volunteerMapMarkers = {};
-
-    // Yellow Dot: Volunteer (You)
-    volunteerMapMarkers.volunteer = L.marker([lastKnownCoords.latitude, lastKnownCoords.longitude], {
-      icon: createLeafletCustomPin('volunteer', 'You (Volunteer)')
-    }).addTo(volunteerMapInstance);
-
-    // Red Dot: Victim
-    volunteerMapMarkers.victim = L.marker([targetLat, targetLon], {
-      icon: createLeafletCustomPin('victim', 'Person in Distress')
-    }).addTo(volunteerMapInstance);
-
-    // Blue Dot: Command Center (if en route)
-    if (hasCommandAssistance) {
-      const cmdPos = [18.9894, 73.1175];
-      bounds.push(cmdPos);
-      volunteerMapMarkers.command = L.marker(cmdPos, {
-        icon: createLeafletCustomPin('command', 'Central Command Unit')
-      }).addTo(volunteerMapInstance);
+    // Red Pin: Victim (Centered priority)
+    if (!volunteerMarkers.victim) {
+      volunteerMarkers.victim = L.marker([targetLat, targetLon], {
+        icon: createLeafletCustomPin('victim', 'Person in Distress')
+      }).addTo(volunteerMapInstance).bindPopup("🎯 <b>Victim Location</b>");
+    } else {
+      volunteerMarkers.victim.setLatLng([targetLat, targetLon]);
     }
 
-    volunteerMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    // Yellow Pin: Volunteer (You)
+    if (!volunteerMarkers.volunteer) {
+      volunteerMarkers.volunteer = L.marker([lastKnownCoords.latitude, lastKnownCoords.longitude], {
+        icon: createLeafletCustomPin('volunteer', 'You (Volunteer)')
+      }).addTo(volunteerMapInstance).bindPopup("🟡 <b>You (Volunteer)</b>");
+    } else {
+      volunteerMarkers.volunteer.setLatLng([lastKnownCoords.latitude, lastKnownCoords.longitude]);
+    }
+
+    // Blue Pin: Command Center
+    if (hasCommandAssistance) {
+      const cmdPos = [18.9894, 73.1175];
+      if (!volunteerMarkers.command) {
+        volunteerMarkers.command = L.marker(cmdPos, {
+          icon: createLeafletCustomPin('command', 'Central Command Unit')
+        }).addTo(volunteerMapInstance).bindPopup("🔵 <b>Central Command</b>");
+      } else {
+        volunteerMarkers.command.setLatLng(cmdPos);
+      }
+    } else if (volunteerMarkers.command) {
+      volunteerMapInstance.removeLayer(volunteerMarkers.command);
+      delete volunteerMarkers.command;
+    }
+
     volunteerMapInstance.invalidateSize();
   }
 
@@ -780,7 +816,7 @@ async function updateVolunteerLocationConvergence() {
 }
 
 // ==========================================
-// 8. VICTIM SCREEN: DUAL ETA & WHATSAPP LIVE MAP
+// 8. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -818,30 +854,31 @@ async function checkVictimAidStatus() {
 
     let responderContactsHTML = "";
 
-    // Initialize/Update Victim Leaflet Map Window
+    // Persistent Leaflet Map for Victim
     if (!victimMapInstance) {
-      victimMapInstance = L.map('victimLiveMap', { zoomControl: false }).setView([vicLat, vicLon], 14);
+      victimMapInstance = L.map('victimLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLat, vicLon], 14);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(victimMapInstance);
     }
 
-    const bounds = [[vicLat, vicLon]];
+    // Red Pin: Victim (You)
+    if (!victimMarkers.victim) {
+      victimMarkers.victim = L.marker([vicLat, vicLon], {
+        icon: createLeafletCustomPin('victim', 'You (Distress Signal)')
+      }).addTo(victimMapInstance).bindPopup("🔴 <b>Your Location (Distress)</b>");
+    } else {
+      victimMarkers.victim.setLatLng([vicLat, vicLon]);
+    }
 
-    // Clear old markers
-    Object.values(victimMapMarkers).forEach(m => victimMapInstance.removeLayer(m));
-    victimMapMarkers = {};
-
-    // Red Dot: Victim (You)
-    victimMapMarkers.victim = L.marker([vicLat, vicLon], {
-      icon: createLeafletCustomPin('victim', 'You (Distress Signal)')
-    }).addTo(victimMapInstance);
-
-    // Command Center Telemetry & Pin
+    // Command Center Pin
     if (hasCommand) {
       const cmdPos = [18.9894, 73.1175];
-      bounds.push(cmdPos);
-      victimMapMarkers.command = L.marker(cmdPos, {
-        icon: createLeafletCustomPin('command', 'Central Command Unit')
-      }).addTo(victimMapInstance);
+      if (!victimMarkers.command) {
+        victimMarkers.command = L.marker(cmdPos, {
+          icon: createLeafletCustomPin('command', 'Central Command Unit')
+        }).addTo(victimMapInstance).bindPopup("🔵 <b>Central Command Unit</b>");
+      } else {
+        victimMarkers.command.setLatLng(cmdPos);
+      }
 
       const distKm = calculateDistanceKm(vicLat, vicLon, 18.9894, 73.1175);
       const cmdRoute = calculateRouteAndETA(distKm);
@@ -855,9 +892,12 @@ async function checkVictimAidStatus() {
           <span style="color: #00d4ff; font-weight: 600; font-size: 11px;">Radio Grid Active</span>
         </div>
       `;
+    } else if (victimMarkers.command) {
+      victimMapInstance.removeLayer(victimMarkers.command);
+      delete victimMarkers.command;
     }
 
-    // Volunteer Telemetry, Pin & Google Navigation
+    // Volunteer Pin
     if (volunteerMissions.length > 0) {
       const volIds = volunteerMissions.map(m => m.volunteer_id);
       const [volProfilesRes, volLocsRes] = await Promise.all([
@@ -874,11 +914,14 @@ async function checkVictimAidStatus() {
         const vLon = foundLoc ? Number(foundLoc.longitude) : vicLon;
 
         const volPos = [vLat, vLon];
-        bounds.push(volPos);
 
-        victimMapMarkers.volunteer = L.marker(volPos, {
-          icon: createLeafletCustomPin('volunteer', `Volunteer: ${vp.name}`)
-        }).addTo(victimMapInstance);
+        if (!victimMarkers[vp.id]) {
+          victimMarkers[vp.id] = L.marker(volPos, {
+            icon: createLeafletCustomPin('volunteer', `Volunteer: ${vp.name}`)
+          }).addTo(victimMapInstance).bindPopup(`🟡 <b>${vp.name}</b> (Volunteer)`);
+        } else {
+          victimMarkers[vp.id].setLatLng(volPos);
+        }
 
         const distKm = calculateDistanceKm(vicLat, vicLon, vLat, vLon);
         const volRoute = calculateRouteAndETA(distKm);
@@ -899,8 +942,6 @@ async function checkVictimAidStatus() {
       });
     }
 
-    // Auto-fit live bounds to encompass victim, volunteer, and command unit
-    victimMapInstance.fitBounds(bounds, { padding: [35, 35], maxZoom: 16 });
     victimMapInstance.invalidateSize();
 
     if (contactsContainer) contactsContainer.innerHTML = responderContactsHTML;
@@ -1199,7 +1240,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fast intervals for telemetry & aid updates
+  // Fast interval loops
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
 });
