@@ -224,24 +224,16 @@ body {
   color: #ffffff;
 }
 
-/* Victim Live Aid Notification Box */
+/* Victim Live Aid Notification & Location Box */
 .victim-aid-status-box {
   width: 100%;
   background: rgba(14, 165, 233, 0.25);
   border: 1px solid #38bdf8;
   border-radius: 16px;
-  padding: 14px 20px;
+  padding: 18px 20px;
   margin-bottom: 15px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  backdrop-filter: blur(15px);
-  animation: pulseAidBox 1.2s infinite alternate;
-}
-
-@keyframes pulseAidBox {
-  from { background: rgba(14, 165, 233, 0.2); }
-  to { background: rgba(14, 165, 233, 0.4); }
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.3);
 }
 
 .aid-pulse-dot {
@@ -255,6 +247,36 @@ body {
 
 .victim-aid-status-box strong { font-size: 15px; color: #e0f2fe; display: block; }
 .victim-aid-status-box p { font-size: 12px; color: #bae6fd; margin-top: 2px; }
+
+.victim-contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.victim-contact-pill {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.victim-contact-pill a {
+  background: #ffd000;
+  color: #000;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 12px;
+}
 
 /* SOS Component */
 .sos-wrapper { width: 100%; margin-top: 5px; }
@@ -409,7 +431,7 @@ body {
 .btn-yes { background: #22c55e; color: #022c0e; }
 .btn-no { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
 
-/* Multi-Radar Field Deployment Layout */
+/* Multi-Case Field Deployment Layout */
 .responders-live-panel {
   background: rgba(14, 165, 233, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.4);
@@ -441,7 +463,7 @@ body {
 /* Multi-Radar Grid Container */
 .multi-radar-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
   padding: 15px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
@@ -457,11 +479,11 @@ body {
   border-radius: 18px;
   border: 1px solid rgba(56, 189, 248, 0.3);
   width: 100%;
-  max-width: 300px;
+  max-width: 320px;
 }
 
 .radar-target-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #ffe600;
   margin-bottom: 8px;
@@ -485,7 +507,7 @@ body {
   margin: 12px 0;
 }
 
-.volunteer-radar-screen {
+.volunteer-radar-screen, .victim-radar-screen {
   width: 190px !important;
   height: 190px !important;
 }
@@ -495,6 +517,7 @@ body {
 .radar-circle-1 { position: absolute; top: 25%; left: 25%; width: 50%; height: 50%; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.25); }
 .radar-circle-2 { position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.15); }
 
+/* TRI-COLOR STANDARDIZED BLIPS */
 .radar-blip {
   position: absolute;
   width: 14px;
@@ -504,8 +527,21 @@ body {
   transition: all 0.5s ease;
 }
 
-.blip-victim { background: #ff3333; box-shadow: 0 0 12px #ff3333; animation: pulseBlip 0.8s infinite alternate; }
-.blip-volunteer { background: #38bdf8; box-shadow: 0 0 12px #38bdf8; }
+.blip-victim { 
+  background: #ff3333; 
+  box-shadow: 0 0 14px #ff3333; 
+  animation: pulseBlip 0.8s infinite alternate; 
+}
+
+.blip-command { 
+  background: #00d4ff; 
+  box-shadow: 0 0 14px #00d4ff; 
+}
+
+.blip-volunteer { 
+  background: #ffd000; 
+  box-shadow: 0 0 14px #ffd000; 
+}
 
 @keyframes pulseBlip {
   from { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
