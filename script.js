@@ -30,7 +30,7 @@ let staffMapInstances = {};
 let staffMarkers = {};
 
 // ==========================================
-// 2. HARDWARE GPS WATCHER & LIVE SYNC
+// 2. HARDWARE GPS WATCHER & COMMAND HQ SYNC
 // ==========================================
 function startContinuousLocationSync() {
   if (!navigator.geolocation) return;
@@ -43,11 +43,24 @@ function startContinuousLocationSync() {
       };
 
       const userId = localStorage.getItem("touristSafetyUserId");
+      const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
+
+      // 1. If tourist/volunteer is logged in, sync their position
       if (userId) {
         await supabase.from("locations").insert({
           user_id: userId,
           latitude: lastKnownCoords.latitude,
           longitude: lastKnownCoords.longitude
+        });
+      }
+
+      // 2. If logged in as Staff Command Center, sync device GPS as Command HQ
+      if (isStaffActive) {
+        await supabase.from("command_center_location").upsert({
+          id: 'PRIMARY_HQ',
+          latitude: lastKnownCoords.latitude,
+          longitude: lastKnownCoords.longitude,
+          updated_at: new Date().toISOString()
         });
       }
     },
@@ -73,6 +86,20 @@ async function getCoordinates() {
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 3000 }
     );
   });
+}
+
+// Fetch live Command Center coordinates from DB or local hardware
+async function getLiveCommandHQCoords() {
+  const { data } = await supabase
+    .from("command_center_location")
+    .select("latitude, longitude")
+    .eq("id", "PRIMARY_HQ")
+    .maybeSingle();
+
+  if (data && data.latitude && data.longitude) {
+    return { latitude: Number(data.latitude), longitude: Number(data.longitude) };
+  }
+  return lastKnownCoords;
 }
 
 // ==========================================
@@ -313,18 +340,19 @@ window.closeModal = function() {
 };
 
 // ==========================================
-// 6. STAFF COMMAND MATRIX & REAL LIVE MAPS
+// 6. STAFF COMMAND MATRIX & DYNAMIC HQ LIVE MAPS
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
   if (!tableBody) return;
 
   try {
-    const [profilesRes, sosRes, locsRes, missionsRes] = await Promise.all([
+    const [profilesRes, sosRes, locsRes, missionsRes, cmdHQ] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("sos_events").select("*").eq("status", "ACTIVE"),
       supabase.from("locations").select("*").order("created_at", { ascending: false }),
-      supabase.from("rescue_missions").select("*").eq("status", "EN_ROUTE")
+      supabase.from("rescue_missions").select("*").eq("status", "EN_ROUTE"),
+      getLiveCommandHQCoords()
     ]);
 
     const profiles = profilesRes.data || [];
@@ -347,7 +375,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. DYNAMIC DISPATCH PROMPT FOR EVERY ACTIVE SOS
+    // 1. Dynamic Dispatch Prompt For Unhandled SOS
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -378,7 +406,7 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. FULL-WIDTH ROSTER TABLE
+    // 2. Full-Width Roster Table
     tableBody.innerHTML = profiles.map(p => {
       const isCriticalSOS = activeSOSUserIds.has(String(p.id));
       let isNearbyResponder = false;
@@ -423,7 +451,7 @@ window.loadStaffMonitoringData = async function() {
       `;
     }).join("");
 
-    // 3. PERSISTENT LIVE LOCATION MAP INSTANCES FOR COMMAND CENTER
+    // 3. Dynamic HQ Live Maps
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -448,7 +476,7 @@ window.loadStaffMonitoringData = async function() {
 
       const activeCaseIds = Object.keys(victimMissionsMap);
 
-      // Clean up dead maps
+      // Clean up closed case maps
       Object.keys(staffMapInstances).forEach(id => {
         if (!activeCaseIds.includes(id)) {
           staffMapInstances[id].remove();
@@ -457,7 +485,6 @@ window.loadStaffMonitoringData = async function() {
         }
       });
 
-      // Build DOM scaffolding only if containers are missing
       activeCaseIds.forEach((vicId, index) => {
         const mapContainerId = `staffCaseMap_${vicId}`;
         let card = document.getElementById(`cardWrapper_${vicId}`);
@@ -474,7 +501,6 @@ window.loadStaffMonitoringData = async function() {
           multiRadarGrid.insertAdjacentHTML('beforeend', cardHTML);
         }
 
-        // Update map without destroying the DOM canvas
         const missions = victimMissionsMap[vicId];
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
@@ -488,7 +514,6 @@ window.loadStaffMonitoringData = async function() {
           staffMarkers[vicId] = {};
         }
 
-        const bounds = [[vicLoc.latitude, vicLoc.longitude]];
         const currentMarkers = staffMarkers[vicId];
 
         // Red Pin: Victim
@@ -500,12 +525,11 @@ window.loadStaffMonitoringData = async function() {
           currentMarkers.victim.setLatLng([vicLoc.latitude, vicLoc.longitude]);
         }
 
-        // Blue Pin: Command Unit
+        // Blue Pin: Command HQ (Live Location)
         let cmdDistanceText = "";
         let cmdMapsUrl = "#";
         if (hasCommand) {
-          const cmdPos = [18.9894, 73.1175];
-          bounds.push(cmdPos);
+          const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
 
           if (!currentMarkers.command) {
             currentMarkers.command = L.marker(cmdPos, {
@@ -531,7 +555,6 @@ window.loadStaffMonitoringData = async function() {
           const firstVol = volunteerMissions[0];
           const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
           const volPos = [volLoc.latitude, volLoc.longitude];
-          bounds.push(volPos);
 
           const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer" };
 
@@ -749,13 +772,12 @@ async function updateVolunteerLocationConvergence() {
     return;
   }
 
-  const { data: targetMissions } = await supabase
-    .from("rescue_missions")
-    .select("responder_type")
-    .eq("target_user_id", String(activeRescueTarget.user_id))
-    .eq("status", "EN_ROUTE");
+  const [targetMissionsRes, cmdHQ] = await Promise.all([
+    supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
+    getLiveCommandHQCoords()
+  ]);
 
-  const hasCommandAssistance = targetMissions && targetMissions.some(m => m.responder_type === 'COMMAND_CENTER');
+  const hasCommandAssistance = targetMissionsRes.data && targetMissionsRes.data.some(m => m.responder_type === 'COMMAND_CENTER');
 
   const targetLat = Number(activeRescueTarget.latitude);
   const targetLon = Number(activeRescueTarget.longitude);
@@ -764,7 +786,7 @@ async function updateVolunteerLocationConvergence() {
   const bearing = calculateBearing(lastKnownCoords.latitude, lastKnownCoords.longitude, targetLat, targetLon);
   const routeInfo = calculateRouteAndETA(distKm);
 
-  // Persistent Volunteer Live Map Window
+  // Persistent Volunteer Live Map
   const mapContainer = document.getElementById("volunteerLiveMap");
   if (mapContainer) {
     if (!volunteerMapInstance) {
@@ -772,7 +794,7 @@ async function updateVolunteerLocationConvergence() {
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(volunteerMapInstance);
     }
 
-    // Red Pin: Victim (Centered priority)
+    // Red Pin: Victim
     if (!volunteerMarkers.victim) {
       volunteerMarkers.victim = L.marker([targetLat, targetLon], {
         icon: createLeafletCustomPin('victim', 'Person in Distress')
@@ -790,9 +812,9 @@ async function updateVolunteerLocationConvergence() {
       volunteerMarkers.volunteer.setLatLng([lastKnownCoords.latitude, lastKnownCoords.longitude]);
     }
 
-    // Blue Pin: Command Center
+    // Blue Pin: Live Command HQ
     if (hasCommandAssistance) {
-      const cmdPos = [18.9894, 73.1175];
+      const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
       if (!volunteerMarkers.command) {
         volunteerMarkers.command = L.marker(cmdPos, {
           icon: createLeafletCustomPin('command', 'Central Command Unit')
@@ -830,23 +852,19 @@ async function checkVictimAidStatus() {
     return;
   }
 
-  const { data: myLoc } = await supabase
-    .from("locations")
-    .select("latitude, longitude")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .maybeSingle();
+  const [myLocRes, missionsRes, cmdHQ] = await Promise.all([
+    supabase.from("locations").select("latitude, longitude").eq("user_id", userId).order("created_at", { ascending: false }).maybeSingle(),
+    supabase.from("rescue_missions").select("*").eq("target_user_id", String(userId)).eq("status", "EN_ROUTE"),
+    getLiveCommandHQCoords()
+  ]);
+
+  const myLoc = myLocRes.data;
+  const missions = missionsRes.data || [];
 
   const vicLat = myLoc ? Number(myLoc.latitude) : lastKnownCoords.latitude;
   const vicLon = myLoc ? Number(myLoc.longitude) : lastKnownCoords.longitude;
 
-  const { data: missions } = await supabase
-    .from("rescue_missions")
-    .select("*")
-    .eq("target_user_id", String(userId))
-    .eq("status", "EN_ROUTE");
-
-  if (missions && missions.length > 0) {
+  if (missions.length > 0) {
     wrapper.style.display = "flex";
 
     const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
@@ -869,9 +887,9 @@ async function checkVictimAidStatus() {
       victimMarkers.victim.setLatLng([vicLat, vicLon]);
     }
 
-    // Command Center Pin
+    // Command Center Pin (Live HQ GPS)
     if (hasCommand) {
-      const cmdPos = [18.9894, 73.1175];
+      const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
       if (!victimMarkers.command) {
         victimMarkers.command = L.marker(cmdPos, {
           icon: createLeafletCustomPin('command', 'Central Command Unit')
@@ -880,7 +898,7 @@ async function checkVictimAidStatus() {
         victimMarkers.command.setLatLng(cmdPos);
       }
 
-      const distKm = calculateDistanceKm(vicLat, vicLon, 18.9894, 73.1175);
+      const distKm = calculateDistanceKm(vicLat, vicLon, cmdPos[0], cmdPos[1]);
       const cmdRoute = calculateRouteAndETA(distKm);
 
       responderContactsHTML += `
@@ -1131,14 +1149,25 @@ window.addEventListener("DOMContentLoaded", () => {
     nextPlane = temp;
   }, 13000);
 
-  // Staff Authentication
+  // Staff Authentication & Live HQ Registration
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
-    staffAuthForm.addEventListener("submit", (e) => {
+    staffAuthForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const enteredCode = document.getElementById("staffPasscodeInput").value.trim();
 
       if (enteredCode === STAFF_PASSCODE) {
+        sessionStorage.setItem("staffAuthenticated", "true");
+
+        // Immediately sync this device's live hardware location as the Command HQ position
+        const currentGps = await getCoordinates();
+        await supabase.from("command_center_location").upsert({
+          id: 'PRIMARY_HQ',
+          latitude: currentGps.latitude,
+          longitude: currentGps.longitude,
+          updated_at: new Date().toISOString()
+        });
+
         window.switchPortal("staffPortal");
         window.loadStaffMonitoringData();
         setInterval(window.loadStaffMonitoringData, 3000);
@@ -1240,7 +1269,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fast interval loops
+  // Fast intervals for telemetry & aid updates
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
 });
