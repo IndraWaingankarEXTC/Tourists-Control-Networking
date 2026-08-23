@@ -15,7 +15,6 @@ let emergencyInterval = null;
 let activeRescueTarget = null;
 let compassInterval = null;
 
-// Per-session dismissed prompt memory
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 
@@ -84,7 +83,7 @@ const siren = new SirenSynthesizer();
 // 3. TELEMETRY & BEARING CALCULATIONS
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 99999;
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
@@ -119,7 +118,7 @@ async function getCoordinates() {
         longitude: pos.coords.longitude
       }),
       (err) => {
-        console.warn("GPS fallback used:", err.message);
+        console.warn("GPS lookup using fallback:", err.message);
         resolve({ latitude: 18.9894, longitude: 73.1175 });
       },
       { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
@@ -128,7 +127,7 @@ async function getCoordinates() {
 }
 
 // ==========================================
-// 4. PORTAL ROUTING & SESSION MANAGEMENT
+// 4. PORTALS & VIEW CONTROLLER
 // ==========================================
 window.switchPortal = function(portalId) {
   ['portalGateway', 'userPortal', 'staffPortal'].forEach(id => {
@@ -239,7 +238,7 @@ window.closeModal = function() {
 };
 
 // ==========================================
-// 5. STAFF COMMAND ROSTER, MULTI-RADARS & DISPATCH QUEUE
+// 5. COMMAND CENTER MULTI-CASE RADARS & DISPATCH
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -273,7 +272,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. MULTI-VICTIM COMMAND DISPATCH QUEUE (Shows prompt for EVERY active SOS)
+    // 1. DYNAMIC DISPATCH PROMPT FOR EVERY ACTIVE SOS
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -285,14 +284,14 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "flex";
       dispatchQueueEl.innerHTML = unhandledDistressSignals.map(sos => {
         const victim = profileMap[String(sos.user_id)];
-        const victimName = victim ? victim.name : "Tourist";
+        const victimName = victim ? victim.name : "Person in Distress";
         return `
           <div class="command-action-box">
             <div class="dispatch-header">
               <span class="hud-pulse"></span>
-              <strong>CRITICAL DISTRESS SIGNAL: ${victimName}</strong>
+              <strong>CRITICAL DISTRESS ALERT: ${victimName}</strong>
             </div>
-            <p>Deploy official Command Center emergency response unit to ${victimName}'s GPS location?</p>
+            <p>Deploy Central Command emergency team to assist ${victimName}?</p>
             <div class="dispatch-actions">
               <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}')">✓ YES, DEPLOY COMMAND UNIT</button>
               <button class="command-btn btn-no" onclick="dismissSpecificCommandPrompt('${sos.id}')">✕ STAND BY</button>
@@ -304,7 +303,7 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. RENDER FULL-WIDTH STAFF ROSTER TABLE
+    // 2. FULL-WIDTH TABLE
     tableBody.innerHTML = profiles.map(p => {
       const isCriticalSOS = activeSOSUserIds.has(String(p.id));
       let isNearbyResponder = false;
@@ -349,7 +348,7 @@ window.loadStaffMonitoringData = async function() {
       `;
     }).join("");
 
-    // 3. MULTI-RADAR RENDERING (Creates a distinct radar for EACH active rescue mission)
+    // 3. MULTI-RADAR RENDERING (Each case has red victim in center, blue command, yellow helper)
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -362,7 +361,7 @@ window.loadStaffMonitoringData = async function() {
       if (commandUnits.length > 0) countLabelParts.push(`${commandUnits.length} Command Unit(s)`);
       if (volunteerUnits.length > 0) countLabelParts.push(`${volunteerUnits.length} Volunteer(s)`);
 
-      responderBadge.innerText = countLabelParts.join(" • ") + " En Route";
+      responderBadge.innerText = countLabelParts.join(" • ") + " Active";
       if (multiRadarGrid) multiRadarGrid.style.display = "grid";
 
       // Group missions by target victim
@@ -373,38 +372,36 @@ window.loadStaffMonitoringData = async function() {
         victimMissionsMap[vicId].push(m);
       });
 
-      // Render a distinct radar for each case being helped
       multiRadarGrid.innerHTML = Object.keys(victimMissionsMap).map((vicId, index) => {
-        const vic = profileMap[vicId] || { name: 'Tourist' };
+        const vic = profileMap[vicId] || { name: 'Person in Distress' };
         const missions = victimMissionsMap[vicId];
-        const primaryMission = missions[0];
 
-        const vicLoc = userLocationMap[vicId] || { latitude: 18.9929 + (index * 0.003), longitude: 73.1205 + (index * 0.002) };
-        const responderLoc = userLocationMap[String(primaryMission.volunteer_id)] || { latitude: 18.9894, longitude: 73.1175 };
+        const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
+        const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
 
-        const dist = calculateDistanceKm(responderLoc.latitude, responderLoc.longitude, vicLoc.latitude, vicLoc.longitude);
-        const distStr = dist < 1 ? `${Math.round(dist * 1000)} meters` : `${dist.toFixed(2)} km`;
-
-        const victimTop = 35 + (index * 6);
-        const victimLeft = 60 - (index * 5);
-        const responderTop = 68 - (index * 5);
-        const responderLeft = 32 + (index * 6);
-
-        const isCommandOnly = missions.every(m => m.responder_type === 'COMMAND_CENTER');
-        const unitTitle = isCommandOnly ? "Central Command Unit" : "Field Responder";
+        const helperNames = volunteerMissions.map(m => {
+          const v = profileMap[String(m.volunteer_id)];
+          return v ? v.name : "Volunteer";
+        }).join(", ");
 
         return `
           <div class="radar-card-unit">
-            <div class="radar-target-title">🎯 Case: ${vic.name} (${unitTitle})</div>
+            <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name}</div>
             <div class="radar-hud-screen">
               <div class="radar-crosshair-x"></div>
               <div class="radar-crosshair-y"></div>
               <div class="radar-circle-1"></div>
               <div class="radar-circle-2"></div>
-              <div class="radar-blip blip-victim" style="top: ${victimTop}%; left: ${victimLeft}%;" title="Victim: ${vic.name}"></div>
-              <div class="radar-blip blip-volunteer" style="top: ${responderTop}%; left: ${responderLeft}%;" title="${unitTitle}"></div>
+              <!-- Red Center: Victim -->
+              <div class="radar-blip blip-victim" style="top: 50%; left: 50%;" title="Victim: ${vic.name}"></div>
+              <!-- Blue: Command Center Unit -->
+              ${hasCommand ? `<div class="radar-blip blip-command" style="top: 30%; left: 68%;" title="Command Unit Team #${index + 1}"></div>` : ''}
+              <!-- Yellow: Volunteer Responder(s) -->
+              ${volunteerMissions.length > 0 ? `<div class="radar-blip blip-volunteer" style="top: 72%; left: 32%;" title="Volunteer: ${helperNames}"></div>` : ''}
             </div>
-            <div class="radar-telemetry-text">Convergence: ${distStr}</div>
+            <div class="radar-telemetry-text">
+              ${hasCommand && volunteerMissions.length > 0 ? `Command 🔵 & ${helperNames} 🟡 Active` : (hasCommand ? 'Command Unit 🔵 Dispatched' : `${helperNames} 🟡 En Route`)}
+            </div>
           </div>
         `;
       }).join("");
@@ -413,15 +410,15 @@ window.loadStaffMonitoringData = async function() {
         const vic = profileMap[String(m.target_user_id)] || { name: 'Tourist' };
         if (m.responder_type === 'COMMAND_CENTER') {
           return `
-            <div class="responder-item" style="border-color: #38bdf8;">
-              <strong style="color: #38bdf8;">⚡ Central Command Unit</strong> ➔ <span style="color:#ffffff;">DISPATCHED TO ASSIST: <strong>${vic.name}</strong></span>
+            <div class="responder-item" style="border-color: #00d4ff;">
+              <strong style="color: #00d4ff;">🔵 Central Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong></span>
             </div>
           `;
         } else {
           const vol = profileMap[String(m.volunteer_id)] || { name: 'Volunteer Unit', phone: 'Field' };
           return `
-            <div class="responder-item" style="border-color: #ffe600;">
-              <strong style="color: #ffe600;">👤 Volunteer: ${vol.name}</strong> (${vol.phone}) ➔ <span style="color:#ffffff;">EN ROUTE TO ASSIST: <strong>${vic.name}</strong></span>
+            <div class="responder-item" style="border-color: #ffd000;">
+              <strong style="color: #ffd000;">🟡 Volunteer: ${vol.name}</strong> (${vol.phone}) ➔ <span style="color:#ffffff;">EN ROUTE TO: <strong>${vic.name}</strong></span>
             </div>
           `;
         }
@@ -460,21 +457,20 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 6. VOLUNTEER DISPATCH PROMPT & RADAR HUD
+// 6. VOLUNTEER PROMPT & TRI-COLOR RADAR
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
   if (!userId) return;
 
   try {
-    // 1. Verify user is registered as volunteer
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
     if (!profile || profile.is_volunteer !== true) {
       window.closeCompassView();
       return;
     }
 
-    // 2. If this volunteer is currently broadcasting an active SOS, do NOT show them volunteer prompts
+    // If this volunteer is broadcasting an active SOS, HIDE the helper HUD (they are now in distress mode)
     const { data: myActiveSOS } = await supabase
       .from("sos_events")
       .select("*")
@@ -486,7 +482,6 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
-    // 3. Find active SOS events from other people
     const { data: sosEvents } = await supabase
       .from("sos_events")
       .select("*")
@@ -500,7 +495,7 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
-    // Check if volunteer is already actively assisting one of these SOS events
+    // Check if this volunteer is already actively assisting a target
     const { data: myMissions } = await supabase
       .from("rescue_missions")
       .select("*")
@@ -525,18 +520,15 @@ async function checkVolunteerDistressSignals() {
       }
     }
 
-    // If not currently on a mission, check for unhandled distress alerts
     const availableAlert = sosEvents.find(s => !dismissedVolunteerSOS.has(String(s.id)));
-    if (!availableAlert) {
-      return;
-    }
+    if (!availableAlert) return;
 
     activeRescueTarget = availableAlert;
     const { data: victimProfile } = await supabase.from("profiles").select("name").eq("id", activeRescueTarget.user_id).maybeSingle();
-    const victimName = victimProfile?.name || "A nearby tourist";
+    const victimName = victimProfile?.name || "A nearby person";
 
     const promptText = document.getElementById("hudPromptText");
-    if (promptText) promptText.innerText = `${victimName} has triggered an active SOS! Can you respond and assist?`;
+    if (promptText) promptText.innerText = `${victimName} is in distress and needs assistance! Can you respond?`;
 
     if (hudWidget && hudWidget.style.display !== "block" && !compassInterval) {
       document.getElementById("hudDispatchPrompt").style.display = "block";
@@ -598,23 +590,39 @@ async function updateVolunteerRadarConvergence() {
     return;
   }
 
-  const myCoords = await getCoordinates();
-  let targetLat = Number(activeRescueTarget.latitude);
-  let targetLon = Number(activeRescueTarget.longitude);
+  // Check if Command Center is also en route to this victim
+  const { data: targetMissions } = await supabase
+    .from("rescue_missions")
+    .select("responder_type")
+    .eq("target_user_id", String(activeRescueTarget.user_id))
+    .eq("status", "EN_ROUTE");
 
-  if (Math.abs(myCoords.latitude - targetLat) < 0.0001 && Math.abs(myCoords.longitude - targetLon) < 0.0001) {
-    targetLat += 0.0035;
-    targetLon += 0.0030;
-  }
+  const hasCommandAssistance = targetMissions && targetMissions.some(m => m.responder_type === 'COMMAND_CENTER');
+
+  const myCoords = await getCoordinates();
+  const targetLat = Number(activeRescueTarget.latitude);
+  const targetLon = Number(activeRescueTarget.longitude);
 
   const distKm = calculateDistanceKm(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
   const bearing = calculateBearing(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
 
+  // Position blips on volunteer HUD
   const myBlip = document.getElementById("volHudMyBlip");
   const vicBlip = document.getElementById("volHudVictimBlip");
+  const cmdBlip = document.getElementById("volHudCommandBlip");
 
-  if (myBlip) { myBlip.style.top = "65%"; myBlip.style.left = "35%"; }
-  if (vicBlip) { vicBlip.style.top = "38%"; vicBlip.style.left = "62%"; }
+  if (myBlip) { myBlip.style.top = "72%"; myBlip.style.left = "32%"; }
+  if (vicBlip) { vicBlip.style.top = "50%"; vicBlip.style.left = "50%"; }
+
+  if (cmdBlip) {
+    if (hasCommandAssistance) {
+      cmdBlip.style.display = "block";
+      cmdBlip.style.top = "30%";
+      cmdBlip.style.left = "68%";
+    } else {
+      cmdBlip.style.display = "none";
+    }
+  }
 
   const distEl = document.getElementById("compassDistance");
   const brgEl = document.getElementById("compassBearing");
@@ -624,20 +632,20 @@ async function updateVolunteerRadarConvergence() {
 }
 
 // ==========================================
-// 7. VICTIM LIVE AID NOTIFICATION CHECKER
+// 7. VICTIM LIVE TACTICAL RADAR & RESPONDER CONTACTS
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
-  const box = document.getElementById("victimAidAlertBox");
+  const wrapper = document.getElementById("victimRadarWrapper");
   const title = document.getElementById("victimAidTitle");
   const details = document.getElementById("victimAidDetails");
+  const contactsContainer = document.getElementById("victimResponderContacts");
 
-  if (!userId || !isEmergencyActive || !box) {
-    if (box) box.style.display = "none";
+  if (!userId || !isEmergencyActive || !wrapper) {
+    if (wrapper) wrapper.style.display = "none";
     return;
   }
 
-  // Check if there are active rescue missions targeting THIS user
   const { data: missions } = await supabase
     .from("rescue_missions")
     .select("*")
@@ -645,28 +653,72 @@ async function checkVictimAidStatus() {
     .eq("status", "EN_ROUTE");
 
   if (missions && missions.length > 0) {
-    box.style.display = "flex";
+    wrapper.style.display = "flex";
 
     const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
-    const volunteerCount = missions.filter(m => m.responder_type === 'VOLUNTEER').length;
+    const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
 
-    if (hasCommand && volunteerCount > 0) {
+    let responderContactsHTML = "";
+
+    if (volunteerMissions.length > 0) {
+      const volIds = volunteerMissions.map(m => m.volunteer_id);
+      const { data: volProfiles } = await supabase.from("profiles").select("name, phone").in("id", volIds);
+      if (volProfiles) {
+        responderContactsHTML += volProfiles.map(vp => `
+          <div class="victim-contact-pill">
+            🟡 <strong>${vp.name} (Volunteer):</strong> <a href="tel:${vp.phone}" style="color: #ffd000; text-decoration: underline;">${vp.phone}</a>
+          </div>
+        `).join("");
+      }
+    }
+
+    if (hasCommand) {
+      responderContactsHTML += `
+        <div class="victim-contact-pill">
+          🔵 <strong>Central Command Unit:</strong> Dispatched & En Route
+        </div>
+      `;
+    }
+
+    if (contactsContainer) contactsContainer.innerHTML = responderContactsHTML;
+
+    // Display Tri-Color Blips on Victim Radar
+    const vicBlip = document.getElementById("vicScreenVictimBlip");
+    const cmdBlip = document.getElementById("vicScreenCommandBlip");
+    const volBlip = document.getElementById("vicScreenVolunteerBlip");
+
+    if (vicBlip) { vicBlip.style.top = "50%"; vicBlip.style.left = "50%"; }
+
+    if (cmdBlip) {
+      cmdBlip.style.display = hasCommand ? "block" : "none";
+      cmdBlip.style.top = "30%";
+      cmdBlip.style.left = "68%";
+    }
+
+    if (volBlip) {
+      volBlip.style.display = volunteerMissions.length > 0 ? "block" : "none";
+      volBlip.style.top = "72%";
+      volBlip.style.left = "32%";
+    }
+
+    if (hasCommand && volunteerMissions.length > 0) {
       title.innerText = "🚨 Aid Dispatched (Command Center + Volunteer)";
-      details.innerText = `Help is on the way! Central Command has dispatched official units and ${volunteerCount} nearby volunteer responder(s) are en route to your position.`;
+      details.innerText = "Command Center units and volunteer responders are actively converging on your position.";
     } else if (hasCommand) {
-      title.innerText = "🚨 Central Command Aid Dispatched";
-      details.innerText = "Central Command Center has verified your distress signal and dispatched emergency rescue units to your location.";
+      title.innerText = "🚨 Central Command Unit Dispatched";
+      details.innerText = "Official command response units are navigating to your GPS location.";
     } else {
       title.innerText = "⚡ Volunteer Responder En Route";
-      details.innerText = `${volunteerCount} registered volunteer responder(s) nearby have accepted your SOS and are heading toward your location.`;
+      details.innerText = "Registered volunteer responder has accepted your SOS and is on their way.";
     }
   } else {
-    box.style.display = "none";
+    // If no active responders (or if volunteer aborted/cancelled), hide radar until help is dispatched
+    wrapper.style.display = "none";
   }
 }
 
 // ==========================================
-// 8. SOS TOGGLE & PROPER MISSION CANCELLATION
+// 8. SOS BROADCAST & VOLUNTEER-IN-DISTRESS TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -685,7 +737,18 @@ window.handleSOSToggle = async function() {
     triggerVisualAlarm(true);
     siren.start();
 
-    // 1. Resolve past dangling alerts & past missions for this user
+    // 1. IF THIS USER WAS CURRENTLY VOLUNTEERING TO HELP SOMEONE ELSE:
+    // CANCEL those missions immediately so the other victim's yellow dot disappears!
+    await supabase
+      .from("rescue_missions")
+      .update({ status: "CANCELLED" })
+      .eq("volunteer_id", String(userId))
+      .eq("status", "EN_ROUTE");
+
+    // 2. Clear this volunteer's outgoing radar tracker
+    window.closeCompassView();
+
+    // 3. Clear old alerts and past missions targeting this user
     await Promise.all([
       supabase.from("sos_events").update({ status: "RESOLVED" }).eq("user_id", userId),
       supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
@@ -693,7 +756,7 @@ window.handleSOSToggle = async function() {
 
     const coords = await getCoordinates();
 
-    // 2. Create fresh SOS event
+    // 4. Create new distress record for this user
     await supabase.from("sos_events").insert({
       user_id: userId,
       latitude: coords.latitude,
@@ -706,7 +769,6 @@ window.handleSOSToggle = async function() {
     triggerVisualAlarm(false);
     siren.stop();
 
-    // Resolve SOS and attached missions immediately
     await Promise.all([
       supabase.from("sos_events").update({ status: "RESOLVED" }).eq("user_id", userId),
       supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
@@ -764,7 +826,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 10. BACKGROUND THEME ENGINE & FORM HANDLERS
+// 10. BACKGROUND THEME ENGINE & FORM LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -939,7 +1001,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fast loops to update visual state
+  // Fast polling intervals
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
 });
