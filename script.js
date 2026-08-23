@@ -7,8 +7,6 @@ const SUPABASE_URL = "https://ccjygeoxaoomhonwenqw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rPFLHItf9TI4P_i14P5bqw_tD5dz6mk";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const STAFF_PASSCODE = "SAFE2026";
-
 let selectedRole = null;
 let isEmergencyActive = false;
 let emergencyInterval = null;
@@ -18,12 +16,12 @@ let compassInterval = null;
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 
-// Pure Hardware GPS state
+// Active device sensors
 let verifiedGpsCoords = null;
 let verifiedGpsAccuracy = null;
 let gpsWatchId = null;
 
-// Persistent Map Instances & Marker Storage
+// Persistent Leaflet maps & marker storage
 let victimMapInstance = null;
 let victimMarkers = {};
 
@@ -34,13 +32,10 @@ let staffMapInstances = {};
 let staffMarkers = {};
 
 // ==========================================
-// 2. STRICT HARDWARE GPS ACQUISITION ENGINE
+// 2. HARDWARE GPS ENGINE & AUTO-SYNC
 // ==========================================
 function startHardwareGpsWatcher() {
-  if (!navigator.geolocation) {
-    alert("Geolocation is not supported by your browser/device.");
-    return;
-  }
+  if (!navigator.geolocation) return;
 
   if (gpsWatchId !== null) {
     navigator.geolocation.clearWatch(gpsWatchId);
@@ -55,12 +50,11 @@ function startHardwareGpsWatcher() {
       verifiedGpsCoords = { latitude: lat, longitude: lon };
       verifiedGpsAccuracy = accuracy;
 
-      console.log(`[GPS Hardware Fix] Lat: ${lat}, Lon: ${lon}, Accuracy: ±${accuracy}m`);
-
       const userId = localStorage.getItem("touristSafetyUserId");
       const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
+      const staffZone = sessionStorage.getItem("staffZoneCode") || "GLOBAL";
 
-      // 1. Live update active user profile position
+      // 1. Live update active user position
       if (userId) {
         await supabase.from("locations").insert({
           user_id: userId,
@@ -69,10 +63,11 @@ function startHardwareGpsWatcher() {
         });
       }
 
-      // 2. Live update Command HQ position if staff is logged in
+      // 2. Live update Command HQ position for this specific zone
       if (isStaffActive) {
         await supabase.from("command_center_location").upsert({
-          id: 'PRIMARY_HQ',
+          id: `HQ_${staffZone}`,
+          zone_code: staffZone,
           latitude: lat,
           longitude: lon,
           updated_at: new Date().toISOString()
@@ -80,21 +75,19 @@ function startHardwareGpsWatcher() {
       }
     },
     (err) => {
-      console.warn(`[GPS Retry Loop] Waiting for hardware fix: ${err.message}`);
-      // Retry automatically on hardware timeout without guessing
+      console.warn(`Waiting for hardware GPS fix: ${err.message}`);
       setTimeout(startHardwareGpsWatcher, 3000);
     },
     {
       enableHighAccuracy: true,
       timeout: 10000,
-      maximumAge: 0 // Do not use stale cache
+      maximumAge: 0
     }
   );
 }
 
 startHardwareGpsWatcher();
 
-// Waits continuously until real hardware sensors deliver accurate GPS coordinates
 async function getAccurateHardwareGps() {
   if (verifiedGpsCoords) return verifiedGpsCoords;
 
@@ -113,23 +106,19 @@ async function getAccurateHardwareGps() {
           latitude: Number(pos.coords.latitude),
           longitude: Number(pos.coords.longitude)
         };
-        verifiedGpsAccuracy = Math.round(pos.coords.accuracy);
         resolve(verifiedGpsCoords);
       },
-      () => {
-        // Continue waiting for watcher fix
-      },
+      () => {},
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   });
 }
 
-// Fetch live Command Center coordinates from DB or local hardware
-async function getLiveCommandHQCoords() {
+async function getLiveCommandHQCoords(zoneCode = "GLOBAL") {
   const { data } = await supabase
     .from("command_center_location")
     .select("latitude, longitude")
-    .eq("id", "PRIMARY_HQ")
+    .eq("id", `HQ_${zoneCode}`)
     .maybeSingle();
 
   if (data && data.latitude && data.longitude) {
@@ -288,6 +277,7 @@ async function updateUserStateView() {
   const loggedInSec = document.getElementById("loggedInSection");
   const nameEl = document.getElementById("activeUserName");
   const roleEl = document.getElementById("activeUserRole");
+  const zoneBadge = document.getElementById("activeUserZoneCodeBadge");
 
   if (!userId) {
     if (loggedOutSec) loggedOutSec.style.display = "block";
@@ -309,6 +299,7 @@ async function updateUserStateView() {
 
   if (nameEl) nameEl.innerText = profile.name;
   if (roleEl) roleEl.innerText = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+  if (zoneBadge) zoneBadge.innerText = profile.zone_code || "GLOBAL";
 
   const { data: activeSOS } = await supabase.from("sos_events").select("*").eq("user_id", userId).eq("status", "ACTIVE");
   const label = document.getElementById("sosLabel");
@@ -337,6 +328,14 @@ window.openStaffModal = function() {
   const authModal = document.getElementById("staffPasscodeModal");
   if (overlay) overlay.style.display = "flex";
   if (authModal) authModal.style.display = "block";
+};
+
+window.openCreateZoneModal = function() {
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const createModal = document.getElementById("createZoneModal");
+  if (overlay) overlay.style.display = "flex";
+  if (createModal) createModal.style.display = "block";
 };
 
 window.openSignInModal = function() {
@@ -369,26 +368,36 @@ window.openRegistration = function(role) {
 };
 
 window.closeModal = function() {
-  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal'].forEach(id => {
+  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
   });
 };
 
+window.exitStaffPortal = function() {
+  sessionStorage.removeItem("staffAuthenticated");
+  sessionStorage.removeItem("staffZoneCode");
+  window.switchPortal("portalGateway");
+};
+
 // ==========================================
-// 6. STAFF COMMAND MATRIX & REAL LIVE MAPS
+// 6. STAFF COMMAND MATRIX (ZONE FILTERED)
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
   if (!tableBody) return;
 
+  const currentZone = sessionStorage.getItem("staffZoneCode") || "GLOBAL";
+  const zoneHeader = document.getElementById("staffZoneDisplayHeader");
+  if (zoneHeader) zoneHeader.innerText = currentZone;
+
   try {
     const [profilesRes, sosRes, locsRes, missionsRes, cmdHQ] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("sos_events").select("*").eq("status", "ACTIVE"),
+      supabase.from("profiles").select("*").eq("zone_code", currentZone).order("created_at", { ascending: false }),
+      supabase.from("sos_events").select("*").eq("zone_code", currentZone).eq("status", "ACTIVE"),
       supabase.from("locations").select("*").order("created_at", { ascending: false }),
-      supabase.from("rescue_missions").select("*").eq("status", "EN_ROUTE"),
-      getLiveCommandHQCoords()
+      supabase.from("rescue_missions").select("*").eq("zone_code", currentZone).eq("status", "EN_ROUTE"),
+      getLiveCommandHQCoords(currentZone)
     ]);
 
     const profiles = profilesRes.data || [];
@@ -401,7 +410,6 @@ window.loadStaffMonitoringData = async function() {
     const profileMap = {};
     profiles.forEach(p => { profileMap[String(p.id)] = p; });
 
-    // Map strictly latest real location per user
     const userLocationMap = {};
     locations.forEach(loc => {
       if (!userLocationMap[String(loc.user_id)]) {
@@ -417,7 +425,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dynamic SOS Dispatch Queue
+    // 1. Dynamic SOS Dispatch Queue for this zone
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -434,11 +442,11 @@ window.loadStaffMonitoringData = async function() {
           <div class="command-action-box">
             <div class="dispatch-header">
               <span class="hud-pulse"></span>
-              <strong>CRITICAL DISTRESS ALERT: ${victimName}</strong>
+              <strong>CRITICAL ALERT (${currentZone}): ${victimName}</strong>
             </div>
-            <p>Deploy Central Command emergency team to assist ${victimName}?</p>
+            <p>Deploy ${currentZone} Central Command emergency team to assist ${victimName}?</p>
             <div class="dispatch-actions">
-              <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}')">✓ YES, DEPLOY COMMAND UNIT</button>
+              <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}', '${currentZone}')">✓ YES, DEPLOY COMMAND UNIT</button>
               <button class="command-btn btn-no" onclick="dismissSpecificCommandPrompt('${sos.id}')">✕ STAND BY</button>
             </div>
           </div>
@@ -448,52 +456,56 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. Full Table Roster
-    tableBody.innerHTML = profiles.map(p => {
-      const isCriticalSOS = activeSOSUserIds.has(String(p.id));
-      let isNearbyResponder = false;
-      const myLoc = userLocationMap[String(p.id)];
+    // 2. Zone Roster Table
+    if (profiles.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
+    } else {
+      tableBody.innerHTML = profiles.map(p => {
+        const isCriticalSOS = activeSOSUserIds.has(String(p.id));
+        let isNearbyResponder = false;
+        const myLoc = userLocationMap[String(p.id)];
 
-      if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0) {
-        if (myLoc) {
-          activeSOSEvents.forEach(sos => {
-            const dist = calculateDistanceKm(myLoc.latitude, myLoc.longitude, Number(sos.latitude), Number(sos.longitude));
-            if (dist <= 25.0) isNearbyResponder = true;
-          });
+        if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0) {
+          if (myLoc) {
+            activeSOSEvents.forEach(sos => {
+              const dist = calculateDistanceKm(myLoc.latitude, myLoc.longitude, Number(sos.latitude), Number(sos.longitude));
+              if (dist <= 25.0) isNearbyResponder = true;
+            });
+          }
         }
-      }
 
-      let rowClass = "row-normal";
-      let statusTag = `<span class="status-tag tag-green">Normal</span>`;
+        let rowClass = "row-normal";
+        let statusTag = `<span class="status-tag tag-green">Normal</span>`;
 
-      if (isCriticalSOS) {
-        rowClass = "row-sos-red";
-        statusTag = `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>`;
-      } else if (isNearbyResponder) {
-        rowClass = "row-responder-yellow";
-        statusTag = `<span class="status-tag tag-yellow">⚡ RESPONDER IN RANGE</span>`;
-      }
+        if (isCriticalSOS) {
+          rowClass = "row-sos-red";
+          statusTag = `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>`;
+        } else if (isNearbyResponder) {
+          rowClass = "row-responder-yellow";
+          statusTag = `<span class="status-tag tag-yellow">⚡ RESPONDER IN RANGE</span>`;
+        }
 
-      const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-      const coordsDisplay = myLoc 
-        ? `${Number(myLoc.latitude).toFixed(4)}, ${Number(myLoc.longitude).toFixed(4)}` 
-        : `🛰️ Acquiring Hardware GPS...`;
+        const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+        const coordsDisplay = myLoc 
+          ? `${Number(myLoc.latitude).toFixed(4)}, ${Number(myLoc.longitude).toFixed(4)}` 
+          : `🛰️ Acquiring GPS...`;
 
-      return `
-        <tr class="${rowClass}">
-          <td>${statusTag}</td>
-          <td><strong>${p.name || 'Anonymous'}</strong></td>
-          <td>${roleBadge || 'User'}</td>
-          <td>${p.phone || 'N/A'}</td>
-          <td>${p.blood_group || 'N/A'}</td>
-          <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
-          <td>${p.home_address || 'N/A'}</td>
-          <td class="coord-cell">${coordsDisplay}</td>
-        </tr>
-      `;
-    }).join("");
+        return `
+          <tr class="${rowClass}">
+            <td>${statusTag}</td>
+            <td><strong>${p.name || 'Anonymous'}</strong></td>
+            <td>${roleBadge || 'User'}</td>
+            <td>${p.phone || 'N/A'}</td>
+            <td>${p.blood_group || 'N/A'}</td>
+            <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
+            <td>${p.home_address || 'N/A'}</td>
+            <td class="coord-cell">${coordsDisplay}</td>
+          </tr>
+        `;
+      }).join("");
+    }
 
-    // 3. Dynamic Multi-Case Maps
+    // 3. Multi-Case Live Maps
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -502,11 +514,7 @@ window.loadStaffMonitoringData = async function() {
       const commandUnits = activeMissions.filter(m => m.responder_type === 'COMMAND_CENTER');
       const volunteerUnits = activeMissions.filter(m => m.responder_type === 'VOLUNTEER');
 
-      const countLabelParts = [];
-      if (commandUnits.length > 0) countLabelParts.push(`${commandUnits.length} Command Unit(s)`);
-      if (volunteerUnits.length > 0) countLabelParts.push(`${volunteerUnits.length} Volunteer(s)`);
-
-      responderBadge.innerText = countLabelParts.join(" • ") + " Active";
+      responderBadge.innerText = `${commandUnits.length} Command • ${volunteerUnits.length} Volunteer(s) Active`;
       if (multiRadarGrid) multiRadarGrid.style.display = "grid";
 
       const victimMissionsMap = {};
@@ -518,7 +526,6 @@ window.loadStaffMonitoringData = async function() {
 
       const activeCaseIds = Object.keys(victimMissionsMap);
 
-      // Clean up dead maps
       Object.keys(staffMapInstances).forEach(id => {
         if (!activeCaseIds.includes(id)) {
           staffMapInstances[id].remove();
@@ -547,7 +554,6 @@ window.loadStaffMonitoringData = async function() {
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
         
-        // Exact dynamic victim location
         const vicLoc = userLocationMap[vicId] || cmdHQ;
 
         let map = staffMapInstances[vicId];
@@ -569,7 +575,7 @@ window.loadStaffMonitoringData = async function() {
           currentMarkers.victim.setLatLng([vicLoc.latitude, vicLoc.longitude]);
         }
 
-        // Blue Pin: Command HQ (Live Location)
+        // Blue Pin: Command HQ
         let cmdDistanceText = "";
         let cmdMapsUrl = "#";
         if (hasCommand) {
@@ -577,8 +583,8 @@ window.loadStaffMonitoringData = async function() {
 
           if (!currentMarkers.command) {
             currentMarkers.command = L.marker(cmdPos, {
-              icon: createLeafletCustomPin('command', 'Central Command Unit')
-            }).addTo(map).bindPopup("🔵 <b>Central Command Unit</b>");
+              icon: createLeafletCustomPin('command', `${currentZone} Command Unit`)
+            }).addTo(map).bindPopup(`🔵 <b>${currentZone} Command Unit</b>`);
           } else {
             currentMarkers.command.setLatLng(cmdPos);
           }
@@ -592,7 +598,7 @@ window.loadStaffMonitoringData = async function() {
           delete currentMarkers.command;
         }
 
-        // Yellow Pin: Volunteer (Live Volunteer Location)
+        // Yellow Pin: Volunteer
         let volDistanceText = "";
         let volMapsUrl = "#";
         if (volunteerMissions.length > 0) {
@@ -639,7 +645,7 @@ window.loadStaffMonitoringData = async function() {
         if (m.responder_type === 'COMMAND_CENTER') {
           return `
             <div class="responder-item" style="border-color: #00d4ff;">
-              <strong style="color: #00d4ff;">🔵 Central Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong></span>
+              <strong style="color: #00d4ff;">🔵 ${currentZone} Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong></span>
             </div>
           `;
         } else {
@@ -654,7 +660,7 @@ window.loadStaffMonitoringData = async function() {
     } else {
       responderBadge.innerText = `0 Responders En Route`;
       if (multiRadarGrid) multiRadarGrid.style.display = "none";
-      respondersPanel.innerHTML = `<em>No active rescue missions underway. Standing by for SOS alerts.</em>`;
+      respondersPanel.innerHTML = `<em>No active rescue missions underway in this zone. Standing by for alerts.</em>`;
     }
 
   } catch (err) {
@@ -662,11 +668,12 @@ window.loadStaffMonitoringData = async function() {
   }
 };
 
-window.dispatchSpecificFromCommandCenter = async function(sosId, targetUserId) {
+window.dispatchSpecificFromCommandCenter = async function(sosId, targetUserId, zoneCode) {
   dismissedCommandSOS.add(String(sosId));
 
   const { error } = await supabase.from("rescue_missions").insert({
     sos_id: String(sosId),
+    zone_code: zoneCode,
     responder_type: 'COMMAND_CENTER',
     target_user_id: String(targetUserId),
     status: "EN_ROUTE"
@@ -685,7 +692,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 7. VOLUNTEER PROMPT & INTERACTIVE LIVE MAP
+// 7. VOLUNTEER DISPATCH (ZONE ISOLATED)
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -698,6 +705,8 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
+    const myZone = profile.zone_code || "GLOBAL";
+
     const { data: myActiveSOS } = await supabase
       .from("sos_events")
       .select("*")
@@ -709,9 +718,11 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
+    // Only query active SOS events inside this user's registered destination zone
     const { data: sosEvents } = await supabase
       .from("sos_events")
       .select("*")
+      .eq("zone_code", myZone)
       .eq("status", "ACTIVE")
       .neq("user_id", userId);
 
@@ -739,8 +750,8 @@ async function checkVolunteerDistressSignals() {
         document.getElementById("hudCompassView").style.display = "block";
         
         if (!compassInterval) {
-          updateVolunteerLocationConvergence();
-          compassInterval = setInterval(updateVolunteerLocationConvergence, 2000);
+          updateVolunteerLocationConvergence(myZone);
+          compassInterval = setInterval(() => updateVolunteerLocationConvergence(myZone), 2000);
         }
         return;
       }
@@ -754,7 +765,7 @@ async function checkVolunteerDistressSignals() {
     const victimName = victimProfile?.name || "A nearby person";
 
     const promptText = document.getElementById("hudPromptText");
-    if (promptText) promptText.innerText = `${victimName} is in distress and needs assistance! Can you respond?`;
+    if (promptText) promptText.innerText = `[${myZone}] ${victimName} is in distress and needs assistance! Can you respond?`;
 
     if (hudWidget && hudWidget.style.display !== "block" && !compassInterval) {
       document.getElementById("hudDispatchPrompt").style.display = "block";
@@ -770,8 +781,12 @@ window.acceptRescueMission = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
   if (!userId || !activeRescueTarget) return;
 
+  const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
+  const myZone = profile?.zone_code || "GLOBAL";
+
   const { error } = await supabase.from("rescue_missions").insert({
     sos_id: String(activeRescueTarget.id),
+    zone_code: myZone,
     volunteer_id: String(userId),
     responder_type: 'VOLUNTEER',
     target_user_id: String(activeRescueTarget.user_id),
@@ -783,9 +798,9 @@ window.acceptRescueMission = async function() {
   document.getElementById("hudDispatchPrompt").style.display = "none";
   document.getElementById("hudCompassView").style.display = "block";
 
-  updateVolunteerLocationConvergence();
+  updateVolunteerLocationConvergence(myZone);
   if (compassInterval) clearInterval(compassInterval);
-  compassInterval = setInterval(updateVolunteerLocationConvergence, 2000);
+  compassInterval = setInterval(() => updateVolunteerLocationConvergence(myZone), 2000);
 };
 
 window.declineRescueMission = function() {
@@ -802,7 +817,7 @@ window.closeCompassView = function() {
   if (hudWidget) hudWidget.style.display = "none";
 };
 
-async function updateVolunteerLocationConvergence() {
+async function updateVolunteerLocationConvergence(zoneCode) {
   if (!activeRescueTarget) return;
 
   const { data: checkActive } = await supabase
@@ -818,7 +833,7 @@ async function updateVolunteerLocationConvergence() {
 
   const [targetMissionsRes, cmdHQ, myCoords] = await Promise.all([
     supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
-    getLiveCommandHQCoords(),
+    getLiveCommandHQCoords(zoneCode),
     getAccurateHardwareGps()
   ]);
 
@@ -839,7 +854,6 @@ async function updateVolunteerLocationConvergence() {
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(volunteerMapInstance);
     }
 
-    // Red Pin: Victim
     if (!volunteerMarkers.victim) {
       volunteerMarkers.victim = L.marker([targetLat, targetLon], {
         icon: createLeafletCustomPin('victim', 'Person in Distress')
@@ -848,7 +862,6 @@ async function updateVolunteerLocationConvergence() {
       volunteerMarkers.victim.setLatLng([targetLat, targetLon]);
     }
 
-    // Yellow Pin: Volunteer (You)
     if (!volunteerMarkers.volunteer) {
       volunteerMarkers.volunteer = L.marker([myCoords.latitude, myCoords.longitude], {
         icon: createLeafletCustomPin('volunteer', 'You (Volunteer)')
@@ -857,13 +870,12 @@ async function updateVolunteerLocationConvergence() {
       volunteerMarkers.volunteer.setLatLng([myCoords.latitude, myCoords.longitude]);
     }
 
-    // Blue Pin: Command HQ
     if (hasCommandAssistance) {
       const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
       if (!volunteerMarkers.command) {
         volunteerMarkers.command = L.marker(cmdPos, {
-          icon: createLeafletCustomPin('command', 'Central Command Unit')
-        }).addTo(volunteerMapInstance).bindPopup("🔵 <b>Central Command</b>");
+          icon: createLeafletCustomPin('command', `${zoneCode} Command Unit`)
+        }).addTo(volunteerMapInstance).bindPopup(`🔵 <b>${zoneCode} Command</b>`);
       } else {
         volunteerMarkers.command.setLatLng(cmdPos);
       }
@@ -897,10 +909,13 @@ async function checkVictimAidStatus() {
     return;
   }
 
+  const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
+  const myZone = profile?.zone_code || "GLOBAL";
+
   const [myLocRes, missionsRes, cmdHQ, myCurrentGps] = await Promise.all([
     supabase.from("locations").select("latitude, longitude").eq("user_id", userId).order("created_at", { ascending: false }).maybeSingle(),
     supabase.from("rescue_missions").select("*").eq("target_user_id", String(userId)).eq("status", "EN_ROUTE"),
-    getLiveCommandHQCoords(),
+    getLiveCommandHQCoords(myZone),
     getAccurateHardwareGps()
   ]);
 
@@ -918,13 +933,11 @@ async function checkVictimAidStatus() {
 
     let responderContactsHTML = "";
 
-    // Persistent Leaflet Map for Victim
     if (!victimMapInstance) {
       victimMapInstance = L.map('victimLiveMap', { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLat, vicLon], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(victimMapInstance);
     }
 
-    // Red Pin: Victim (You)
     if (!victimMarkers.victim) {
       victimMarkers.victim = L.marker([vicLat, vicLon], {
         icon: createLeafletCustomPin('victim', 'You (Distress Signal)')
@@ -933,13 +946,12 @@ async function checkVictimAidStatus() {
       victimMarkers.victim.setLatLng([vicLat, vicLon]);
     }
 
-    // Command Center Pin
     if (hasCommand) {
       const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
       if (!victimMarkers.command) {
         victimMarkers.command = L.marker(cmdPos, {
-          icon: createLeafletCustomPin('command', 'Central Command Unit')
-        }).addTo(victimMapInstance).bindPopup("🔵 <b>Central Command Unit</b>");
+          icon: createLeafletCustomPin('command', `${myZone} Command Unit`)
+        }).addTo(victimMapInstance).bindPopup(`🔵 <b>${myZone} Command Unit</b>`);
       } else {
         victimMarkers.command.setLatLng(cmdPos);
       }
@@ -950,7 +962,7 @@ async function checkVictimAidStatus() {
       responderContactsHTML += `
         <div class="victim-contact-pill">
           <div>
-            🔵 <strong>Central Command Unit:</strong> Dispatched<br>
+            🔵 <strong>${myZone} Command Unit:</strong> Dispatched<br>
             <small style="color: #00d4ff; font-weight: 600;">Distance: ${formatDistance(distKm)} • ETA: ${cmdRoute.etaText}</small>
           </div>
           <span style="color: #00d4ff; font-weight: 600; font-size: 11px;">Radio Grid Active</span>
@@ -961,7 +973,6 @@ async function checkVictimAidStatus() {
       delete victimMarkers.command;
     }
 
-    // Volunteer Pin
     if (volunteerMissions.length > 0) {
       const volIds = volunteerMissions.map(m => m.volunteer_id);
       const [volProfilesRes, volLocsRes] = await Promise.all([
@@ -1011,10 +1022,10 @@ async function checkVictimAidStatus() {
     if (contactsContainer) contactsContainer.innerHTML = responderContactsHTML;
 
     if (hasCommand && volunteerMissions.length > 0) {
-      title.innerText = "🚨 Aid Dispatched (Command Center + Volunteer)";
-      details.innerText = "Both Central Command and nearby volunteer responders are actively converging on your location.";
+      title.innerText = `🚨 ${myZone} Aid Dispatched (Command + Volunteer)`;
+      details.innerText = "Command response units and volunteer responders are actively converging on your position.";
     } else if (hasCommand) {
-      title.innerText = "🚨 Central Command Unit Dispatched";
+      title.innerText = `🚨 ${myZone} Command Unit Dispatched`;
       details.innerText = "Official command response units are navigating to your GPS coordinates.";
     } else {
       title.innerText = "⚡ Volunteer Responder En Route";
@@ -1036,6 +1047,9 @@ window.handleSOSToggle = async function() {
     window.openRegistration("tourist");
     return;
   }
+
+  const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
+  const myZone = profile?.zone_code || "GLOBAL";
 
   isEmergencyActive = !isEmergencyActive;
   const label = document.getElementById("sosLabel");
@@ -1062,6 +1076,7 @@ window.handleSOSToggle = async function() {
 
     await supabase.from("sos_events").insert({
       user_id: userId,
+      zone_code: myZone,
       latitude: coords.latitude,
       longitude: coords.longitude,
       status: "ACTIVE"
@@ -1195,19 +1210,33 @@ window.addEventListener("DOMContentLoaded", () => {
     nextPlane = temp;
   }, 13000);
 
-  // Staff Authentication & Live Dynamic HQ Registration
+  // Staff Authentication with Dynamic Zone Lookup
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
     staffAuthForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const enteredZone = document.getElementById("staffZoneInput").value.trim().toUpperCase();
       const enteredCode = document.getElementById("staffPasscodeInput").value.trim();
 
-      if (enteredCode === STAFF_PASSCODE) {
+      const { data: zoneRecord } = await supabase
+        .from("destination_zones")
+        .select("*")
+        .eq("zone_code", enteredZone)
+        .maybeSingle();
+
+      if (!zoneRecord) {
+        alert(`Destination Zone '${enteredZone}' does not exist. Please register it first.`);
+        return;
+      }
+
+      if (zoneRecord.passcode === enteredCode) {
         sessionStorage.setItem("staffAuthenticated", "true");
+        sessionStorage.setItem("staffZoneCode", enteredZone);
 
         const currentGps = await getAccurateHardwareGps();
         await supabase.from("command_center_location").upsert({
-          id: 'PRIMARY_HQ',
+          id: `HQ_${enteredZone}`,
+          zone_code: enteredZone,
           latitude: currentGps.latitude,
           longitude: currentGps.longitude,
           updated_at: new Date().toISOString()
@@ -1217,7 +1246,32 @@ window.addEventListener("DOMContentLoaded", () => {
         window.loadStaffMonitoringData();
         setInterval(window.loadStaffMonitoringData, 3000);
       } else {
-        alert("Incorrect Staff Passcode. Access Denied.");
+        alert("Incorrect Zone Passcode. Access Denied.");
+      }
+    });
+  }
+
+  // Create New Destination Zone
+  const createZoneForm = document.getElementById("createZoneForm");
+  if (createZoneForm) {
+    createZoneForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const zoneCode = document.getElementById("newZoneCode").value.trim().toUpperCase();
+      const zoneName = document.getElementById("newZoneName").value.trim();
+      const passcode = document.getElementById("newZonePasscode").value.trim();
+
+      const { error } = await supabase.from("destination_zones").insert({
+        zone_code: zoneCode,
+        zone_name: zoneName,
+        passcode: passcode
+      });
+
+      if (error) {
+        alert(`Failed to create zone: ${error.message}`);
+      } else {
+        alert(`Destination Zone '${zoneCode}' (${zoneName}) registered successfully! You can now login.`);
+        window.openStaffModal();
+        document.getElementById("staffZoneInput").value = zoneCode;
       }
     });
   }
@@ -1241,7 +1295,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
 
       localStorage.setItem("touristSafetyUserId", profile.id);
-      alert(`Welcome back, ${profile.name}! Your session is restored.`);
+      alert(`Welcome back, ${profile.name}! Registered to zone: ${profile.zone_code || 'GLOBAL'}`);
       window.closeModal();
       updateUserStateView();
       checkVolunteerDistressSignals();
@@ -1249,7 +1303,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Profile Registration Form
+  // Profile Registration with Zone Code
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
@@ -1257,13 +1311,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const submitBtn = regForm.querySelector(".submit-btn");
       submitBtn.disabled = true;
-      submitBtn.innerText = "Locking Hardware GPS...";
+      submitBtn.innerText = "Locking Hardware GPS & Zone...";
 
+      const destinationZone = document.getElementById("regZoneCode").value.trim().toUpperCase();
       const wantsSecondRole = document.getElementById("additionalRole")?.checked || false;
       const isTourist = selectedRole === "tourist" || wantsSecondRole;
       const isVolunteer = selectedRole === "volunteer" || wantsSecondRole;
 
       const payload = {
+        zone_code: destinationZone,
         name: document.getElementById("name").value.trim(),
         age: parseInt(document.getElementById("age").value, 10),
         gender: document.getElementById("gender").value,
@@ -1302,7 +1358,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const roles = [isTourist && "Tourist", isVolunteer && "Volunteer"].filter(Boolean).join(" and ");
         const successMsg = document.getElementById("successMessage");
-        if (successMsg) successMsg.innerText = `You have successfully registered as ${roles}. GPS coordinates locked accurately.`;
+        if (successMsg) successMsg.innerText = `You have successfully registered as ${roles} under Destination Zone '${destinationZone}'.`;
 
         regForm.reset();
         updateUserStateView();
