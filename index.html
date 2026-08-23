@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tourist Safety Command Network</title>
+  
+  <!-- Leaflet.js Real Map Styles -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
   <link rel="stylesheet" href="styles.css">
   <script type="module" src="script.js" defer></script>
 </head>
@@ -118,7 +123,7 @@
             <button class="switch-user-btn" onclick="signOutCurrentUser()">Switch / Log Out</button>
           </div>
 
-          <!-- Victim Live Location Tracker & Direct Responder Box -->
+          <!-- Victim Live Map Box (WhatsApp Live Location Style) -->
           <div id="victimRadarWrapper" class="victim-aid-status-box" style="display: none; flex-direction: column; align-items: center;">
             <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
               <div class="aid-pulse-dot"></div>
@@ -128,19 +133,8 @@
               </div>
             </div>
 
-            <!-- Victim's Integrated Live Location Screen -->
-            <div class="radar-hud-screen victim-radar-screen" style="margin: 16px 0 10px;">
-              <div class="radar-crosshair-x"></div>
-              <div class="radar-crosshair-y"></div>
-              <div class="radar-circle-1"></div>
-              <div class="radar-circle-2"></div>
-              <!-- Red Dot: Victim (You) -->
-              <div id="vicScreenVictimBlip" class="radar-blip blip-victim" title="You (In Distress)"></div>
-              <!-- Blue Dot: Command Center -->
-              <div id="vicScreenCommandBlip" class="radar-blip blip-command" style="display: none;" title="Central Command Unit"></div>
-              <!-- Yellow Dot: Volunteer -->
-              <div id="vicScreenVolunteerBlip" class="radar-blip blip-volunteer" style="display: none;" title="Volunteer Responder"></div>
-            </div>
+            <!-- WhatsApp Style Live Map Container for Victim -->
+            <div id="victimLiveMap" class="whatsapp-live-map-window"></div>
 
             <!-- Direct Responder Contact Cards -->
             <div id="victimResponderContacts" class="victim-contacts-list"></div>
@@ -220,14 +214,14 @@
         <!-- Multi-Victim Command Center Emergency Dispatch Queue -->
         <div id="commandDispatchQueue" class="command-dispatch-queue" style="display: none;"></div>
 
-        <!-- Multi-Case Field Deployment & Live Location Box -->
+        <!-- Multi-Case Field Deployment & Live Map Box -->
         <div class="responders-live-panel" id="respondersLivePanel">
           <div class="panel-header">
-            <strong>⚡ Field Deployment & Live Location Tracker</strong>
+            <strong>⚡ Field Deployment & Live Location Tracking</strong>
             <span id="responderCountBadge">0 Responders En Route</span>
           </div>
           
-          <!-- Dynamic Grid for Multiple Live Location Screens -->
+          <!-- Dynamic Grid for Multiple Live Map Windows -->
           <div id="staffMultiRadarGrid" class="multi-radar-grid" style="display: none;"></div>
 
           <div class="panel-content" id="respondersList" style="margin-top: 10px;">
@@ -238,8 +232,8 @@
         <!-- Legend -->
         <div class="table-legend">
           <span class="legend-item"><span class="legend-badge red-badge"></span> RED: Critical SOS Active</span>
-          <span class="legend-item"><span class="legend-badge yellow-badge"></span> YELLOW: Volunteer Within Range (< 5 km)</span>
-          <span class="legend-item"><span class="legend-badge green-badge"></span> NORMAL: Standing by / Secure</span>
+          <span class="legend-item"><span class="legend-badge yellow-badge"></span> YELLOW: Volunteer Within Range</span>
+          <span class="legend-item"><span class="legend-badge green-badge"></span> NORMAL: Secure</span>
         </div>
 
         <!-- Full-Width Live Table -->
@@ -265,7 +259,7 @@
       </section>
     </main>
 
-    <!-- VOLUNTEER RAPID DISPATCH HUD -->
+    <!-- VOLUNTEER RAPID DISPATCH HUD (WITH LIVE MAP) -->
     <div id="volunteerHudWidget" class="volunteer-hud" style="display: none;">
       <!-- STEP A: RESCUE INVITATION -->
       <div id="hudDispatchPrompt">
@@ -280,26 +274,16 @@
         </div>
       </div>
 
-      <!-- STEP B: VOLUNTEER LIVE LOCATION TRACKER -->
+      <!-- STEP B: VOLUNTEER LIVE MAP TRACKER -->
       <div id="hudCompassView" style="display: none;">
         <div class="hud-header">
           <strong>LIVE LOCATION TRACKER</strong>
           <button class="hud-close-btn" onclick="closeCompassView()">✕</button>
         </div>
-        <div class="volunteer-radar-box">
-          <div class="radar-hud-screen volunteer-radar-screen">
-            <div class="radar-crosshair-x"></div>
-            <div class="radar-crosshair-y"></div>
-            <div class="radar-circle-1"></div>
-            <div class="radar-circle-2"></div>
-            <!-- Red Dot: Victim -->
-            <div id="volHudVictimBlip" class="radar-blip blip-victim" title="Victim"></div>
-            <!-- Blue Dot: Command Center -->
-            <div id="volHudCommandBlip" class="radar-blip blip-command" style="display: none;" title="Central Command Unit"></div>
-            <!-- Yellow Dot: You (Volunteer) -->
-            <div id="volHudMyBlip" class="radar-blip blip-volunteer" title="You (Volunteer)"></div>
-          </div>
-        </div>
+        
+        <!-- WhatsApp Style Live Map for Volunteer -->
+        <div id="volunteerLiveMap" class="whatsapp-live-map-window" style="height: 200px; margin: 8px 0;"></div>
+        
         <div class="compass-telemetry">
           <div>Distance: <strong id="compassDistance">--</strong></div>
           <div>Bearing: <strong id="compassBearing">0°</strong></div>
