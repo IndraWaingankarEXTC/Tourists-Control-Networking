@@ -80,7 +80,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 3. TELEMETRY & BEARING CALCULATIONS
+// 3. MATHEMATICAL RADAR PROJECTION ENGINE
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
@@ -105,6 +105,39 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
   return (brng + 360) % 360;
 }
 
+function formatDistance(distKm) {
+  if (distKm < 0.01) return "0 meters (Immediate Proximity)";
+  if (distKm < 1.0) return `${Math.round(distKm * 1000)} meters away`;
+  return `${distKm.toFixed(2)} km away`;
+}
+
+/**
+ * Projects a target GPS onto the 200px polar radar circle relative to victim center (50%, 50%)
+ * Max radar radius scale = 5.0 km
+ */
+function projectGpsToRadar(vicLat, vicLon, targetLat, targetLon, maxRangeKm = 5.0) {
+  const distKm = calculateDistanceKm(vicLat, vicLon, targetLat, targetLon);
+  
+  if (distKm <= 0.015) {
+    return { top: "50%", left: "50%", distKm: 0 };
+  }
+
+  const bearing = calculateBearing(vicLat, vicLon, targetLat, targetLon);
+  const bearingRad = bearing * (Math.PI / 180);
+  
+  const normalizedDist = Math.min(distKm / maxRangeKm, 1.0);
+  const radiusPercent = normalizedDist * 40; // Max 40% outward from center (keeps inside screen)
+
+  const deltaX = radiusPercent * Math.sin(bearingRad);
+  const deltaY = -radiusPercent * Math.cos(bearingRad);
+
+  return {
+    top: `${(50 + deltaY).toFixed(1)}%`,
+    left: `${(50 + deltaX).toFixed(1)}%`,
+    distKm: distKm
+  };
+}
+
 async function getCoordinates() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -118,7 +151,7 @@ async function getCoordinates() {
         longitude: pos.coords.longitude
       }),
       (err) => {
-        console.warn("GPS lookup fallback:", err.message);
+        console.warn("GPS lookup using fallback:", err.message);
         resolve({ latitude: 18.9894, longitude: 73.1175 });
       },
       { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
@@ -127,7 +160,7 @@ async function getCoordinates() {
 }
 
 // ==========================================
-// 4. PORTALS & VIEW CONTROLLER
+// 4. PORTAL ROUTING & SESSION MANAGEMENT
 // ==========================================
 window.switchPortal = function(portalId) {
   ['portalGateway', 'userPortal', 'staffPortal'].forEach(id => {
@@ -348,7 +381,7 @@ window.loadStaffMonitoringData = async function() {
       `;
     }).join("");
 
-    // 3. MULTI-CASE LIVE LOCATION SCREENS
+    // 3. MULTI-CASE LIVE LOCATION PROJECTION
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
@@ -364,7 +397,6 @@ window.loadStaffMonitoringData = async function() {
       responderBadge.innerText = countLabelParts.join(" • ") + " Active";
       if (multiRadarGrid) multiRadarGrid.style.display = "grid";
 
-      // Group active missions by target victim
       const victimMissionsMap = {};
       activeMissions.forEach(m => {
         const vicId = String(m.target_user_id);
@@ -379,18 +411,28 @@ window.loadStaffMonitoringData = async function() {
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
 
-        const helperNames = volunteerMissions.map(m => {
-          const v = profileMap[String(m.volunteer_id)];
-          return v ? v.name : "Volunteer";
-        }).join(", ");
+        const vicLoc = userLocationMap[vicId] || { latitude: 18.9894, longitude: 73.1175 };
 
-        let statusText = "";
-        if (hasCommand && volunteerMissions.length > 0) {
-          statusText = `Command Unit 🔵 & Volunteer (${helperNames}) 🟡 Converging`;
-        } else if (hasCommand) {
-          statusText = `Command Unit 🔵 Dispatched`;
-        } else {
-          statusText = `Volunteer (${helperNames}) 🟡 En Route`;
+        // Real Telemetry Projection for Volunteer
+        let volBlipHTML = "";
+        let volDistanceText = "";
+        if (volunteerMissions.length > 0) {
+          const firstVol = volunteerMissions[0];
+          const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
+          const volProj = projectGpsToRadar(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
+          const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer" };
+
+          volBlipHTML = `<div class="radar-blip blip-volunteer" style="top: ${volProj.top}; left: ${volProj.left};" title="Volunteer: ${volProfile.name}"></div>`;
+          volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(volProj.distKm)}`;
+        }
+
+        // Real Telemetry Projection for Command Center (Assumed Headquarters or responding officer coordinates)
+        let cmdBlipHTML = "";
+        let cmdDistanceText = "";
+        if (hasCommand) {
+          const cmdProj = projectGpsToRadar(vicLoc.latitude, vicLoc.longitude, 18.9894, 73.1175);
+          cmdBlipHTML = `<div class="radar-blip blip-command" style="top: ${cmdProj.top}; left: ${cmdProj.left};" title="Command Center Unit"></div>`;
+          cmdDistanceText = `Command Unit: ${formatDistance(cmdProj.distKm)}`;
         }
 
         return `
@@ -401,14 +443,15 @@ window.loadStaffMonitoringData = async function() {
               <div class="radar-crosshair-y"></div>
               <div class="radar-circle-1"></div>
               <div class="radar-circle-2"></div>
-              <!-- Red Dot: Victim (Center) -->
+              <!-- Red Center: Victim -->
               <div class="radar-blip blip-victim" style="top: 50%; left: 50%;" title="Victim: ${vic.name}"></div>
-              <!-- Blue Dot: Command Unit -->
-              ${hasCommand ? `<div class="radar-blip blip-command" style="top: 30%; left: 68%;" title="Central Command Unit"></div>` : ''}
-              <!-- Yellow Dot: Volunteer Responder -->
-              ${volunteerMissions.length > 0 ? `<div class="radar-blip blip-volunteer" style="top: 72%; left: 32%;" title="Volunteer: ${helperNames}"></div>` : ''}
+              ${cmdBlipHTML}
+              ${volBlipHTML}
             </div>
-            <div class="radar-telemetry-text">${statusText}</div>
+            <div class="radar-telemetry-text" style="line-height: 1.4;">
+              ${cmdDistanceText ? `<div>🔵 ${cmdDistanceText}</div>` : ''}
+              ${volDistanceText ? `<div>🟡 ${volDistanceText}</div>` : ''}
+            </div>
           </div>
         `;
       }).join("");
@@ -464,7 +507,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 6. VOLUNTEER PROMPT & LIVE LOCATION TRACKER
+// 6. VOLUNTEER PROMPT & LIVE LOCATION HUD
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -477,7 +520,6 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
-    // If this volunteer is broadcasting an active SOS, hide helper HUD
     const { data: myActiveSOS } = await supabase
       .from("sos_events")
       .select("*")
@@ -502,7 +544,6 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
-    // Check if this volunteer is already actively assisting a target
     const { data: myMissions } = await supabase
       .from("rescue_missions")
       .select("*")
@@ -521,7 +562,7 @@ async function checkVolunteerDistressSignals() {
         
         if (!compassInterval) {
           updateVolunteerLocationConvergence();
-          compassInterval = setInterval(updateVolunteerLocationConvergence, 2500);
+          compassInterval = setInterval(updateVolunteerLocationConvergence, 2000);
         }
         return;
       }
@@ -566,7 +607,7 @@ window.acceptRescueMission = async function() {
 
   updateVolunteerLocationConvergence();
   if (compassInterval) clearInterval(compassInterval);
-  compassInterval = setInterval(updateVolunteerLocationConvergence, 2500);
+  compassInterval = setInterval(updateVolunteerLocationConvergence, 2000);
 };
 
 window.declineRescueMission = function() {
@@ -597,7 +638,6 @@ async function updateVolunteerLocationConvergence() {
     return;
   }
 
-  // Check if Command Center is also en route to this victim
   const { data: targetMissions } = await supabase
     .from("rescue_missions")
     .select("responder_type")
@@ -610,22 +650,22 @@ async function updateVolunteerLocationConvergence() {
   const targetLat = Number(activeRescueTarget.latitude);
   const targetLon = Number(activeRescueTarget.longitude);
 
-  const distKm = calculateDistanceKm(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
+  const volProj = projectGpsToRadar(targetLat, targetLon, myCoords.latitude, myCoords.longitude);
   const bearing = calculateBearing(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
 
-  // Position blips on volunteer HUD
   const myBlip = document.getElementById("volHudMyBlip");
   const vicBlip = document.getElementById("volHudVictimBlip");
   const cmdBlip = document.getElementById("volHudCommandBlip");
 
-  if (myBlip) { myBlip.style.top = "72%"; myBlip.style.left = "32%"; }
   if (vicBlip) { vicBlip.style.top = "50%"; vicBlip.style.left = "50%"; }
+  if (myBlip) { myBlip.style.top = volProj.top; myBlip.style.left = volProj.left; }
 
   if (cmdBlip) {
     if (hasCommandAssistance) {
+      const cmdProj = projectGpsToRadar(targetLat, targetLon, 18.9894, 73.1175);
       cmdBlip.style.display = "block";
-      cmdBlip.style.top = "30%";
-      cmdBlip.style.left = "68%";
+      cmdBlip.style.top = cmdProj.top;
+      cmdBlip.style.left = cmdProj.left;
     } else {
       cmdBlip.style.display = "none";
     }
@@ -634,12 +674,12 @@ async function updateVolunteerLocationConvergence() {
   const distEl = document.getElementById("compassDistance");
   const brgEl = document.getElementById("compassBearing");
 
-  if (distEl) distEl.innerText = distKm < 1 ? `${Math.round(distKm * 1000)} m` : `${distKm.toFixed(2)} km`;
+  if (distEl) distEl.innerText = formatDistance(volProj.distKm);
   if (brgEl) brgEl.innerText = `${Math.round(bearing)}°`;
 }
 
 // ==========================================
-// 7. VICTIM LIVE LOCATION MAP & RESPONDER CONTACTS
+// 7. VICTIM SCREEN: DUAL DISTANCES & REAL RADAR
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -653,6 +693,18 @@ async function checkVictimAidStatus() {
     return;
   }
 
+  // 1. Fetch victim's own latest GPS
+  const { data: myLoc } = await supabase
+    .from("locations")
+    .select("latitude, longitude")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .maybeSingle();
+
+  const vicLat = myLoc ? Number(myLoc.latitude) : 18.9894;
+  const vicLon = myLoc ? Number(myLoc.longitude) : 73.1175;
+
+  // 2. Fetch active rescue missions targeting this victim
   const { data: missions } = await supabase
     .from("rescue_missions")
     .select("*")
@@ -667,55 +719,79 @@ async function checkVictimAidStatus() {
 
     let responderContactsHTML = "";
 
-    if (volunteerMissions.length > 0) {
-      const volIds = volunteerMissions.map(m => m.volunteer_id);
-      const { data: volProfiles } = await supabase.from("profiles").select("name, phone").in("id", volIds);
-      if (volProfiles) {
-        responderContactsHTML += volProfiles.map(vp => `
-          <div class="victim-contact-pill">
-            <span>🟡 <strong>${vp.name}</strong> (Volunteer En Route)</span>
-            <a href="tel:${vp.phone}">📞 Call ${vp.phone}</a>
-          </div>
-        `).join("");
-      }
-    }
-
+    // Calculate Command Center Live Telemetry & Projection
+    const cmdBlip = document.getElementById("vicScreenCommandBlip");
     if (hasCommand) {
+      const cmdProj = projectGpsToRadar(vicLat, vicLon, 18.9894, 73.1175);
+      if (cmdBlip) {
+        cmdBlip.style.display = "block";
+        cmdBlip.style.top = cmdProj.top;
+        cmdBlip.style.left = cmdProj.left;
+      }
       responderContactsHTML += `
         <div class="victim-contact-pill">
-          <span>🔵 <strong>Central Command Dispatch Unit</strong> (Deployed)</span>
-          <span style="color: #00d4ff; font-weight: 600; font-size: 12px;">Active Radio Grid</span>
+          <div>
+            🔵 <strong>Central Command Unit:</strong> Dispatched<br>
+            <small style="color: #00d4ff; font-weight: 600;">Distance: ${formatDistance(cmdProj.distKm)}</small>
+          </div>
+          <span style="color: #00d4ff; font-weight: 600; font-size: 11px;">Radio Grid Active</span>
         </div>
       `;
+    } else if (cmdBlip) {
+      cmdBlip.style.display = "none";
+    }
+
+    // Calculate Volunteer Live Telemetry & Projection
+    const volBlip = document.getElementById("vicScreenVolunteerBlip");
+    if (volunteerMissions.length > 0) {
+      const volIds = volunteerMissions.map(m => m.volunteer_id);
+      const [volProfilesRes, volLocsRes] = await Promise.all([
+        supabase.from("profiles").select("id, name, phone").in("id", volIds),
+        supabase.from("locations").select("user_id, latitude, longitude").in("user_id", volIds).order("created_at", { ascending: false })
+      ]);
+
+      const volProfiles = volProfilesRes.data || [];
+      const volLocs = volLocsRes.data || [];
+
+      volProfiles.forEach(vp => {
+        const foundLoc = volLocs.find(l => String(l.user_id) === String(vp.id));
+        const vLat = foundLoc ? Number(foundLoc.latitude) : vicLat;
+        const vLon = foundLoc ? Number(foundLoc.longitude) : vicLon;
+
+        const volProj = projectGpsToRadar(vicLat, vicLon, vLat, vLon);
+
+        if (volBlip) {
+          volBlip.style.display = "block";
+          volBlip.style.top = volProj.top;
+          volBlip.style.left = volProj.left;
+        }
+
+        responderContactsHTML += `
+          <div class="victim-contact-pill">
+            <div>
+              🟡 <strong>${vp.name}</strong> (Volunteer En Route)<br>
+              <small style="color: #ffd000; font-weight: 600;">Distance: ${formatDistance(volProj.distKm)}</small>
+            </div>
+            <a href="tel:${vp.phone}">📞 Call ${vp.phone}</a>
+          </div>
+        `;
+      });
+    } else if (volBlip) {
+      volBlip.style.display = "none";
     }
 
     if (contactsContainer) contactsContainer.innerHTML = responderContactsHTML;
 
-    // Display Tri-Color Blips on Victim Live Location Map
+    // Set Red Dot permanently at center
     const vicBlip = document.getElementById("vicScreenVictimBlip");
-    const cmdBlip = document.getElementById("vicScreenCommandBlip");
-    const volBlip = document.getElementById("vicScreenVolunteerBlip");
-
     if (vicBlip) { vicBlip.style.top = "50%"; vicBlip.style.left = "50%"; }
-
-    if (cmdBlip) {
-      cmdBlip.style.display = hasCommand ? "block" : "none";
-      cmdBlip.style.top = "30%";
-      cmdBlip.style.left = "68%";
-    }
-
-    if (volBlip) {
-      volBlip.style.display = volunteerMissions.length > 0 ? "block" : "none";
-      volBlip.style.top = "72%";
-      volBlip.style.left = "32%";
-    }
 
     if (hasCommand && volunteerMissions.length > 0) {
       title.innerText = "🚨 Aid Dispatched (Command Center + Volunteer)";
-      details.innerText = "Both Central Command and nearby volunteer responders are actively converging on your location.";
+      details.innerText = "Both Central Command and nearby volunteer responders are actively converging on your position.";
     } else if (hasCommand) {
       title.innerText = "🚨 Central Command Unit Dispatched";
-      details.innerText = "Official command response units are navigating to your GPS coordinates.";
+      details.innerText = "Official command response units are navigating to your GPS location.";
     } else {
       title.innerText = "⚡ Volunteer Responder En Route";
       details.innerText = "A registered volunteer responder has accepted your SOS and is on their way.";
@@ -726,7 +802,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 8. SOS BROADCAST & VOLUNTEER-IN-DISTRESS TRANSITION
+// 8. SOS BROADCAST & VOLUNTEER DISTRESS ABORT
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -745,17 +821,15 @@ window.handleSOSToggle = async function() {
     triggerVisualAlarm(true);
     siren.start();
 
-    // 1. If this volunteer was previously helping someone, cancel that rescue mission immediately
+    // Abort any mission this user was volunteering for
     await supabase
       .from("rescue_missions")
       .update({ status: "CANCELLED" })
       .eq("volunteer_id", String(userId))
       .eq("status", "EN_ROUTE");
 
-    // 2. Close outgoing helper HUD
     window.closeCompassView();
 
-    // 3. Clear old past records for this user
     await Promise.all([
       supabase.from("sos_events").update({ status: "RESOLVED" }).eq("user_id", userId),
       supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
@@ -763,7 +837,6 @@ window.handleSOSToggle = async function() {
 
     const coords = await getCoordinates();
 
-    // 4. Create new distress record
     await supabase.from("sos_events").insert({
       user_id: userId,
       latitude: coords.latitude,
@@ -833,7 +906,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 10. BACKGROUND THEME ENGINE & FORM LISTENERS
+// 10. BACKGROUND ENGINE & FORM LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -1008,7 +1081,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fast polling intervals
+  // Live intervals
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
 });
