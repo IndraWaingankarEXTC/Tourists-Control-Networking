@@ -18,9 +18,11 @@ let compassInterval = null;
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 
-// Active Hardware GPS State
+// Hardware GPS State
 let verifiedGpsCoords = null;
+let verifiedGpsAccuracy = null;
 let gpsWatchId = null;
+let wakeLockSentinel = null;
 
 // Persistent Leaflet Maps & Markers
 let victimMapInstance = null;
@@ -50,106 +52,109 @@ let activeZoneGeofence = {
 let lastGeofenceCheckinTime = 0;
 let checkinCountdownInterval = null;
 
-let staffPollingTimer = null;
-let superAdminPollingTimer = null;
-let lastLocationWriteAt = 0;
-const LOCATION_WRITE_INTERVAL_MS = 10000;
-
 // ==========================================
-// 2. HARDWARE GPS ENGINE & TIMEOUT FALLBACK
+// 2. INSTANT A-GPS FAST LOCK & WAKE-LOCK ENGINE
 // ==========================================
-function startHardwareGpsWatcher() {
-  if (!navigator.geolocation) return;
 
+// Keep mobile screen awake so tracking never pauses
+async function requestScreenWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLockSentinel = await navigator.wakeLock.request('screen');
+      console.log('⚡ Screen WakeLock active: Continuous GPS tracking enabled');
+    }
+  } catch (err) {
+    console.warn('WakeLock note:', err.message);
+  }
+}
+
+// Push latest position to Supabase immediately
+async function broadcastLocationTelemetry(lat, lon, accuracy) {
+  verifiedGpsCoords = { latitude: lat, longitude: lon };
+  verifiedGpsAccuracy = accuracy || 10;
+
+  const userId = localStorage.getItem("touristSafetyUserId");
+  const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
+  const staffZone = sessionStorage.getItem("staffZoneCode");
+
+  if (userId) {
+    await supabase.from("locations").insert({
+      user_id: userId,
+      latitude: lat,
+      longitude: lon
+    });
+  }
+
+  if (isStaffActive && staffZone) {
+    await supabase.from("command_center_location").upsert({
+      id: `HQ_${staffZone}`,
+      zone_code: staffZone,
+      latitude: lat,
+      longitude: lon,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  // Update tourist map if active
+  if (touristOverviewMapInstance && touristOverviewMarker) {
+    touristOverviewMarker.setLatLng([lat, lon]);
+  }
+}
+
+// Fast Tri-Stage GPS Starter
+window.triggerInstantGpsLock = async function() {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported on this device.");
+    return { latitude: 18.9894, longitude: 73.1175 };
+  }
+
+  requestScreenWakeLock();
+
+  // STAGE 1: Instant Fast-Fix (< 1s) using network/A-GPS
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = Number(pos.coords.latitude);
+      const lon = Number(pos.coords.longitude);
+      const acc = Math.round(pos.coords.accuracy);
+      broadcastLocationTelemetry(lat, lon, acc);
+    },
+    (err) => console.warn("Stage 1 Fast-Fix bypass:", err.message),
+    { enableHighAccuracy: false, timeout: 2500, maximumAge: 60000 }
+  );
+
+  // STAGE 2: Precise Satellite Streaming
   if (gpsWatchId !== null) {
     navigator.geolocation.clearWatch(gpsWatchId);
   }
 
   gpsWatchId = navigator.geolocation.watchPosition(
-    async (pos) => {
+    (pos) => {
       const lat = Number(pos.coords.latitude);
       const lon = Number(pos.coords.longitude);
-
-      verifiedGpsCoords = { latitude: lat, longitude: lon };
-
-      const userId = localStorage.getItem("touristSafetyUserId");
-      const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
-      const staffZone = sessionStorage.getItem("staffZoneCode");
-
-      const now = Date.now();
-      if (now - lastLocationWriteAt < LOCATION_WRITE_INTERVAL_MS) return;
-      lastLocationWriteAt = now;
-
-      if (userId) {
-        const { error } = await supabase.from("locations").insert({
-          user_id: userId,
-          latitude: lat,
-          longitude: lon
-        });
-        if (error) console.warn("Location sync failed:", error.message);
-      }
-
-      if (isStaffActive && staffZone) {
-        const { error } = await supabase.from("command_center_location").upsert({
-          id: `HQ_${staffZone}`,
-          zone_code: staffZone,
-          latitude: lat,
-          longitude: lon,
-          updated_at: new Date().toISOString()
-        });
-        if (error) console.warn("Command HQ sync failed:", error.message);
-      }
+      const acc = Math.round(pos.coords.accuracy);
+      broadcastLocationTelemetry(lat, lon, acc);
     },
-    (err) => {
-      console.warn(`GPS hardware watch update: ${err.message}`);
-    },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
+    (err) => console.warn("Continuous GPS watch note:", err.message),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
-}
 
-startHardwareGpsWatcher();
+  // STAGE 3: Return best available fix
+  return verifiedGpsCoords || { latitude: 18.9894, longitude: 73.1175 };
+};
 
-// Non-blocking GPS resolver: returns hardware fix or immediate fallback in under 2.5s
-async function getQuickHardwareGps() {
-  if (verifiedGpsCoords) return verifiedGpsCoords;
-  if (!navigator.geolocation) return { latitude: 18.9894, longitude: 73.1175 };
+// Initial instant trigger
+window.triggerInstantGpsLock();
 
-  return new Promise((resolve) => {
-    let resolved = false;
-
-    const safetyTimeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        resolve({ latitude: 18.9894, longitude: 73.1175 });
-      }
-    }, 2500);
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(safetyTimeout);
-          verifiedGpsCoords = {
-            latitude: Number(pos.coords.latitude),
-            longitude: Number(pos.coords.longitude)
-          };
-          resolve(verifiedGpsCoords);
-        }
-      },
-      () => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(safetyTimeout);
-          resolve({ latitude: 18.9894, longitude: 73.1175 });
-        }
-      },
-      { enableHighAccuracy: true, timeout: 2300, maximumAge: 5000 }
-    );
-  });
-}
+// Re-acquire WakeLock if tab regains focus
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    requestScreenWakeLock();
+    window.triggerInstantGpsLock();
+  }
+});
 
 async function getLiveCommandHQCoords(zoneCode) {
-  if (!zoneCode) return await getQuickHardwareGps();
+  if (!zoneCode) return await window.triggerInstantGpsLock();
 
   const { data } = await supabase
     .from("command_center_location")
@@ -160,7 +165,7 @@ async function getLiveCommandHQCoords(zoneCode) {
   if (data && data.latitude && data.longitude) {
     return { latitude: Number(data.latitude), longitude: Number(data.longitude) };
   }
-  return await getQuickHardwareGps();
+  return await window.triggerInstantGpsLock();
 }
 
 // ==========================================
@@ -290,7 +295,7 @@ function createLeafletCustomPin(type, title) {
 }
 
 // ==========================================
-// 5. GEOFENCE MONITORING & AI POI CONTEXT
+// 5. GEOFENCE MONITORING & AI CONTEXT
 // ==========================================
 async function fetchNearbyAIContext(lat, lon) {
   try {
@@ -325,7 +330,7 @@ async function checkTouristGeofenceBoundary() {
     .eq("zone_code", currentZone)
     .maybeSingle();
 
-  const myCoords = await getQuickHardwareGps();
+  const myCoords = await window.triggerInstantGpsLock();
 
   const centerLat = zoneRecord?.geofence_lat || myCoords.latitude;
   const centerLon = zoneRecord?.geofence_lon || myCoords.longitude;
@@ -460,7 +465,7 @@ window.initStaffGeofenceEditor = async function() {
     .eq("zone_code", currentZone)
     .maybeSingle();
 
-  const currentGps = await getQuickHardwareGps();
+  const currentGps = await window.triggerInstantGpsLock();
 
   const centerLat = zoneRecord?.geofence_lat || currentGps.latitude;
   const centerLon = zoneRecord?.geofence_lon || currentGps.longitude;
@@ -595,7 +600,7 @@ async function updateUserStateView() {
 
   if (nameEl) nameEl.innerText = profile.name;
   if (roleEl) roleEl.innerText = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-  if (zoneBadge) zoneBadge.innerText = profile.zone_code || "GLOBAL";
+  if (zoneBadge) zoneBadge.innerText = profile.zone_code || "UNASSIGNED";
 
   const { data: activeSOS } = await supabase.from("sos_events").select("*").eq("user_id", userId).eq("status", "ACTIVE");
   const label = document.getElementById("sosLabel");
@@ -612,9 +617,6 @@ async function updateUserStateView() {
 
 window.signOutCurrentUser = function() {
   localStorage.removeItem("touristSafetyUserId");
-  isEmergencyActive = false;
-  siren.stop();
-  triggerVisualAlarm(false);
   dismissedVolunteerSOS.clear();
   window.closeCompassView();
   updateUserStateView();
@@ -684,18 +686,16 @@ window.closeModal = function() {
 window.exitStaffPortal = function() {
   sessionStorage.removeItem("staffAuthenticated");
   sessionStorage.removeItem("staffZoneCode");
-  if (staffPollingTimer) { clearInterval(staffPollingTimer); staffPollingTimer = null; }
   window.switchPortal("portalGateway");
 };
 
 window.exitSuperAdminPortal = function() {
   sessionStorage.removeItem("superAdminAuthenticated");
-  if (superAdminPollingTimer) { clearInterval(superAdminPollingTimer); superAdminPollingTimer = null; }
   window.switchPortal("portalGateway");
 };
 
 // ==========================================
-// 8. PROFILE EDITING ENGINE (USER & ADMIN)
+// 8. STRICTLY INDIVIDUAL-OWNED PROFILE EDIT
 // ==========================================
 window.openEditOwnProfileModal = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -703,25 +703,22 @@ window.openEditOwnProfileModal = async function() {
     alert("Please sign in first to edit your profile.");
     return;
   }
-  window.openEditProfileById(userId);
-};
-
-window.openEditProfileById = async function(profileId) {
-  window.closeModal();
 
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", profileId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (error || !profile) {
-    alert("Could not retrieve profile record.");
+    alert("Could not retrieve your profile record.");
     return;
   }
 
+  window.closeModal();
+
   document.getElementById("editProfileId").value = profile.id;
-  document.getElementById("editZoneCode").value = profile.zone_code || "GLOBAL";
+  document.getElementById("editZoneCode").value = profile.zone_code || "";
   document.getElementById("editName").value = profile.name || "";
   document.getElementById("editAge").value = profile.age || "";
   document.getElementById("editGender").value = profile.gender || "Male";
@@ -742,7 +739,7 @@ window.openEditProfileById = async function(profileId) {
 };
 
 // ==========================================
-// 9. WEBSITE HEAD / SUPER ADMIN MASTER MATRIX
+// 9. WEBSITE HEAD / MASTER OVERVIEW MATRIX
 // ==========================================
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
@@ -783,19 +780,23 @@ window.loadSuperAdminMatrix = async function() {
     document.getElementById("saZoneListBadge").innerText = `${zones.length} Destination Zones Active`;
 
     if (zonesCardsEl) {
-      zonesCardsEl.innerHTML = zones.map(z => `
-        <div class="zone-summary-card">
-          <strong>📍 ${z.zone_code}</strong>
-          <small>${z.zone_name}</small>
-          <div style="margin-top: 6px; font-size: 11px; font-family: monospace; color: #a7f3d0;">
-            Passcode: <b>${z.passcode}</b>
+      if (zones.length === 0) {
+        zonesCardsEl.innerHTML = `<em style="opacity: 0.7;">No custom zones created yet.</em>`;
+      } else {
+        zonesCardsEl.innerHTML = zones.map(z => `
+          <div class="zone-summary-card">
+            <strong>📍 ${z.zone_code}</strong>
+            <small>${z.zone_name}</small>
+            <div style="margin-top: 6px; font-size: 11px; font-family: monospace; color: #a7f3d0;">
+              Passcode: <b>${z.passcode}</b> • Radius: <b>${z.geofence_radius_km || 2.5}km</b>
+            </div>
           </div>
-        </div>
-      `).join("");
+        `).join("");
+      }
     }
 
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
       return;
     }
 
@@ -810,7 +811,7 @@ window.loadSuperAdminMatrix = async function() {
 
       return `
         <tr class="${rowClass}">
-          <td><strong style="color: #ffd000;">${p.zone_code || 'GLOBAL'}</strong></td>
+          <td><strong style="color: #ffd000;">${p.zone_code || 'UNASSIGNED'}</strong></td>
           <td>${statusTag}</td>
           <td><strong>${p.name || 'Anonymous'}</strong></td>
           <td>${roleBadge || 'User'}</td>
@@ -819,9 +820,6 @@ window.loadSuperAdminMatrix = async function() {
           <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
           <td>${p.home_address || 'N/A'}</td>
           <td class="coord-cell">${coordsDisplay}</td>
-          <td>
-            <button class="table-action-edit-btn" onclick="openEditProfileById('${p.id}')">✏️ Edit</button>
-          </td>
         </tr>
       `;
     }).join("");
@@ -832,7 +830,7 @@ window.loadSuperAdminMatrix = async function() {
 };
 
 // ==========================================
-// 10. STAFF COMMAND MATRIX (STRICT ZONE ISOLATION)
+// 10. STAFF COMMAND MATRIX (ZONE ISOLATED)
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -878,7 +876,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dispatch Queue strictly for this zone
+    // 1. Dispatch Queue
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -911,7 +909,7 @@ window.loadStaffMonitoringData = async function() {
 
     // 2. Zone Roster Table
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
     } else {
       tableBody.innerHTML = profiles.map(p => {
         const isCriticalSOS = activeSOSUserIds.has(String(p.id));
@@ -953,9 +951,6 @@ window.loadStaffMonitoringData = async function() {
             <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
             <td>${p.home_address || 'N/A'}</td>
             <td class="coord-cell">${coordsDisplay}</td>
-            <td>
-              <button class="table-action-edit-btn" onclick="openEditProfileById('${p.id}')">✏️ Edit</button>
-            </td>
           </tr>
         `;
       }).join("");
@@ -1195,12 +1190,12 @@ async function checkVolunteerDistressSignals() {
 
   try {
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-    if (!profile || profile.is_volunteer !== true) {
+    if (!profile || profile.is_volunteer !== true || !profile.zone_code) {
       window.closeCompassView();
       return;
     }
 
-    const myZone = profile.zone_code || "GLOBAL";
+    const myZone = profile.zone_code;
 
     const { data: myActiveSOS } = await supabase
       .from("sos_events")
@@ -1276,7 +1271,7 @@ window.acceptRescueMission = async function() {
   if (!userId || !activeRescueTarget) return;
 
   const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
-  const myZone = profile?.zone_code || "GLOBAL";
+  const myZone = profile?.zone_code;
 
   const { error } = await supabase.from("rescue_missions").insert({
     sos_id: String(activeRescueTarget.id),
@@ -1328,7 +1323,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
   const [targetMissionsRes, cmdHQ, myCoords] = await Promise.all([
     supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
     getLiveCommandHQCoords(zoneCode),
-    getQuickHardwareGps()
+    window.triggerInstantGpsLock()
   ]);
 
   const hasCommandAssistance = targetMissionsRes.data && targetMissionsRes.data.some(m => m.responder_type === 'COMMAND_CENTER');
@@ -1388,7 +1383,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 13. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION & CONTACTS
+// 13. VICTIM SCREEN: DUAL GOOGLE MAPS & CONTACTS
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1403,13 +1398,13 @@ async function checkVictimAidStatus() {
   }
 
   const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
-  const myZone = profile?.zone_code || "GLOBAL";
+  const myZone = profile?.zone_code;
 
   const [myLocRes, missionsRes, cmdHQ, myCurrentGps] = await Promise.all([
-    supabase.from("locations").select("latitude, longitude").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("locations").select("latitude, longitude").eq("user_id", userId).order("created_at", { ascending: false }).maybeSingle(),
     supabase.from("rescue_missions").select("*").eq("target_user_id", String(userId)).eq("status", "EN_ROUTE"),
     getLiveCommandHQCoords(myZone),
-    getQuickHardwareGps()
+    window.triggerInstantGpsLock()
   ]);
 
   const myLoc = myLocRes.data;
@@ -1542,7 +1537,7 @@ window.handleSOSToggle = async function() {
   }
 
   const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
-  const myZone = profile?.zone_code || "GLOBAL";
+  const myZone = profile?.zone_code;
 
   isEmergencyActive = !isEmergencyActive;
   const label = document.getElementById("sosLabel");
@@ -1565,7 +1560,7 @@ window.handleSOSToggle = async function() {
       supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
     ]);
 
-    const coords = await getQuickHardwareGps();
+    const coords = await window.triggerInstantGpsLock();
 
     await supabase.from("sos_events").insert({
       user_id: userId,
@@ -1591,11 +1586,6 @@ window.handleSOSToggle = async function() {
 };
 
 function triggerVisualAlarm(activate) {
-  if (emergencyInterval) {
-    clearInterval(emergencyInterval);
-    emergencyInterval = null;
-  }
-
   if (activate) {
     emergencyInterval = setInterval(() => {
       document.body.classList.toggle("emergency-flash");
@@ -1644,33 +1634,7 @@ window.handleSelfOptOut = async function() {
 // ==========================================
 // 16. BACKGROUND THEME ENGINE & LISTENERS
 // ==========================================
-async function checkBackendConnection() {
-  const statusEl = document.getElementById("apiStatus");
-  if (!statusEl) return;
-
-  try {
-    const { error } = await supabase
-      .from("destination_zones")
-      .select("zone_code")
-      .limit(1);
-
-    if (error) throw error;
-
-    statusEl.textContent = "● API ONLINE";
-    statusEl.classList.add("online");
-    statusEl.classList.remove("offline");
-    statusEl.title = "Supabase API + SQL database connected";
-  } catch (error) {
-    statusEl.textContent = "● API OFFLINE";
-    statusEl.classList.add("offline");
-    statusEl.classList.remove("online");
-    statusEl.title = error?.message || "Database/API connection failed";
-    console.error("Backend connection check failed:", error);
-  }
-}
-
 window.addEventListener("DOMContentLoaded", () => {
-  checkBackendConnection();
 
   const scenes = [
     {
@@ -1734,7 +1698,7 @@ window.addEventListener("DOMContentLoaded", () => {
     nextPlane = temp;
   }, 13000);
 
-  // 1. Staff Authentication with Zone Verification & Geofence Load
+  // 1. Staff Authentication with Zone Verification
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
     staffAuthForm.addEventListener("submit", async (e) => {
@@ -1749,7 +1713,7 @@ window.addEventListener("DOMContentLoaded", () => {
         .maybeSingle();
 
       if (!zoneRecord) {
-        alert(`Destination Zone '${enteredZone}' does not exist. Please register it first.`);
+        alert(`Destination Zone '${enteredZone}' does not exist. Please create it first.`);
         return;
       }
 
@@ -1757,7 +1721,7 @@ window.addEventListener("DOMContentLoaded", () => {
         sessionStorage.setItem("staffAuthenticated", "true");
         sessionStorage.setItem("staffZoneCode", enteredZone);
 
-        const currentGps = await getQuickHardwareGps();
+        const currentGps = await window.triggerInstantGpsLock();
         await supabase.from("command_center_location").upsert({
           id: `HQ_${enteredZone}`,
           zone_code: enteredZone,
@@ -1769,15 +1733,14 @@ window.addEventListener("DOMContentLoaded", () => {
         window.switchPortal("staffPortal");
         window.initStaffGeofenceEditor();
         window.loadStaffMonitoringData();
-        if (staffPollingTimer) clearInterval(staffPollingTimer);
-        staffPollingTimer = setInterval(window.loadStaffMonitoringData, 3000);
+        setInterval(window.loadStaffMonitoringData, 3000);
       } else {
         alert("Incorrect Zone Passcode. Access Denied.");
       }
     });
   }
 
-  // 2. Website Head / Super Admin Authentication
+  // 2. Super Admin Authentication
   const superAdminAuthForm = document.getElementById("superAdminAuthForm");
   if (superAdminAuthForm) {
     superAdminAuthForm.addEventListener("submit", (e) => {
@@ -1788,15 +1751,14 @@ window.addEventListener("DOMContentLoaded", () => {
         sessionStorage.setItem("superAdminAuthenticated", "true");
         window.switchPortal("superAdminPortal");
         window.loadSuperAdminMatrix();
-        if (superAdminPollingTimer) clearInterval(superAdminPollingTimer);
-        superAdminPollingTimer = setInterval(window.loadSuperAdminMatrix, 4000);
+        setInterval(window.loadSuperAdminMatrix, 4000);
       } else {
         alert("Incorrect Master Passcode. Access Denied.");
       }
     });
   }
 
-  // 3. Create New Destination Zone
+  // 3. Create Custom Destination Zone
   const createZoneForm = document.getElementById("createZoneForm");
   if (createZoneForm) {
     createZoneForm.addEventListener("submit", async (e) => {
@@ -1805,17 +1767,21 @@ window.addEventListener("DOMContentLoaded", () => {
       const zoneName = document.getElementById("newZoneName").value.trim();
       const passcode = document.getElementById("newZonePasscode").value.trim();
 
+      const currentGps = await window.triggerInstantGpsLock();
+
       const { error } = await supabase.from("destination_zones").insert({
         zone_code: zoneCode,
         zone_name: zoneName,
         passcode: passcode,
+        geofence_lat: currentGps.latitude,
+        geofence_lon: currentGps.longitude,
         geofence_radius_km: 2.5
       });
 
       if (error) {
         alert(`Failed to create zone: ${error.message}`);
       } else {
-        alert(`Destination Zone '${zoneCode}' (${zoneName}) registered successfully! You can now login.`);
+        alert(`Destination Zone '${zoneCode}' (${zoneName}) created successfully! You can now login.`);
         window.openStaffModal();
         document.getElementById("staffZoneInput").value = zoneCode;
       }
@@ -1833,7 +1799,6 @@ window.addEventListener("DOMContentLoaded", () => {
         .from("profiles")
         .select("*")
         .eq("phone", phoneInput)
-        .limit(1)
         .maybeSingle();
 
       if (!matchedProfile) {
@@ -1842,7 +1807,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
 
       localStorage.setItem("touristSafetyUserId", matchedProfile.id);
-      alert(`Welcome back, ${matchedProfile.name}! Registered to zone: ${matchedProfile.zone_code || 'GLOBAL'}`);
+      alert(`Welcome back, ${matchedProfile.name}! Registered to zone: ${matchedProfile.zone_code || 'UNASSIGNED'}`);
       window.closeModal();
       updateUserStateView();
       checkVolunteerDistressSignals();
@@ -1851,7 +1816,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. User Registration
+  // 5. Fast User Registration
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
@@ -1883,18 +1848,24 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       try {
-        const { data: zoneRecord, error: zoneError } = await supabase
+        const coords = await window.triggerInstantGpsLock();
+
+        const { data: existingZone } = await supabase
           .from("destination_zones")
           .select("zone_code")
           .eq("zone_code", destinationZone)
           .maybeSingle();
 
-        if (zoneError) throw zoneError;
-        if (!zoneRecord) {
-          throw new Error(`Destination Zone '${destinationZone}' does not exist. Ask the zone administrator for the correct code.`);
+        if (!existingZone) {
+          await supabase.from("destination_zones").insert({
+            zone_code: destinationZone,
+            zone_name: `${destinationZone} Safety Zone`,
+            passcode: "SAFE2026",
+            geofence_lat: coords.latitude,
+            geofence_lon: coords.longitude,
+            geofence_radius_km: 2.5
+          });
         }
-
-        const coords = await getQuickHardwareGps();
 
         const { data, error } = await supabase
           .from("profiles")
@@ -1921,6 +1892,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         regForm.reset();
         updateUserStateView();
+        checkTouristGeofenceBoundary();
       } catch (err) {
         alert(`Registration error: ${err.message}`);
       } finally {
@@ -1930,7 +1902,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 6. Edit Profile Form Listener
+  // 6. Own-Profile Update Form Listener
   const editProfileForm = document.getElementById("editProfileForm");
   if (editProfileForm) {
     editProfileForm.addEventListener("submit", async (e) => {
@@ -1938,7 +1910,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const submitBtn = document.getElementById("editSubmitBtn");
       submitBtn.disabled = true;
-      submitBtn.innerText = "Saving Changes...";
+      submitBtn.innerText = "Updating Profile...";
 
       const profileId = document.getElementById("editProfileId").value;
       const updatedZone = document.getElementById("editZoneCode").value.trim().toUpperCase();
@@ -1973,32 +1945,22 @@ window.addEventListener("DOMContentLoaded", () => {
           supabase.from("rescue_missions").update({ zone_code: updatedZone }).eq("target_user_id", profileId)
         ]);
 
-        alert("Profile updated successfully!");
+        alert("Your profile has been updated successfully!");
         window.closeModal();
 
         updateUserStateView();
-        if (sessionStorage.getItem("staffAuthenticated") === "true") {
-          window.loadStaffMonitoringData();
-        }
-        if (sessionStorage.getItem("superAdminAuthenticated") === "true") {
-          window.loadSuperAdminMatrix();
-        }
+        checkTouristGeofenceBoundary();
       } catch (err) {
         alert(`Update error: ${err.message}`);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.innerText = "💾 Save Changes";
+        submitBtn.innerText = "💾 Update My Profile";
       }
     });
   }
 
-  // Restore the last user session
-  if (localStorage.getItem("touristSafetyUserId")) {
-    window.enterUserMode();
-  }
-
-  // Live intervals
+  // Polling intervals
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
-  setInterval(checkTouristGeofenceBoundary, 4000);
+  setInterval(checkTouristGeofenceBoundary, 15000);
 });
