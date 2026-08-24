@@ -87,7 +87,6 @@ async function getQuickHardwareGps() {
   return new Promise((resolve) => {
     let resolved = false;
 
-    // 3-second safety timer so the form never hangs
     const safetyTimeout = setTimeout(() => {
       if (!resolved) {
         resolved = true;
@@ -383,7 +382,7 @@ window.openRegistration = function(role) {
 };
 
 window.closeModal = function() {
-  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal'].forEach(id => {
+  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal', 'editProfileModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
   });
@@ -401,7 +400,55 @@ window.exitSuperAdminPortal = function() {
 };
 
 // ==========================================
-// 6. WEBSITE HEAD / SUPER ADMIN MASTER MATRIX
+// 6. PROFILE EDITING ENGINE (USER & ADMIN)
+// ==========================================
+window.openEditOwnProfileModal = async function() {
+  const userId = localStorage.getItem("touristSafetyUserId");
+  if (!userId) {
+    alert("Please sign in first to edit your profile.");
+    return;
+  }
+  window.openEditProfileById(userId);
+};
+
+window.openEditProfileById = async function(profileId) {
+  window.closeModal();
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error || !profile) {
+    alert("Could not retrieve profile record.");
+    return;
+  }
+
+  // Populate edit modal fields
+  document.getElementById("editProfileId").value = profile.id;
+  document.getElementById("editZoneCode").value = profile.zone_code || "GLOBAL";
+  document.getElementById("editName").value = profile.name || "";
+  document.getElementById("editAge").value = profile.age || "";
+  document.getElementById("editGender").value = profile.gender || "Male";
+  document.getElementById("editBloodGroup").value = profile.blood_group || "O+";
+  document.getElementById("editPhone").value = profile.phone || "";
+  document.getElementById("editEmergency1").value = profile.emergency_contact_1 || "";
+  document.getElementById("editEmergencyPhone1").value = profile.emergency_phone_1 || "";
+  document.getElementById("editEmergency2").value = profile.emergency_contact_2 || "";
+  document.getElementById("editEmergencyPhone2").value = profile.emergency_phone_2 || "";
+  document.getElementById("editHomeAddress").value = profile.home_address || "";
+  document.getElementById("editIsTourist").checked = profile.is_tourist === true;
+  document.getElementById("editIsVolunteer").checked = profile.is_volunteer === true;
+
+  const overlay = document.getElementById("modalOverlay");
+  const editModal = document.getElementById("editProfileModal");
+  if (overlay) overlay.style.display = "flex";
+  if (editModal) editModal.style.display = "block";
+};
+
+// ==========================================
+// 7. WEBSITE HEAD / SUPER ADMIN MASTER MATRIX
 // ==========================================
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
@@ -454,7 +501,7 @@ window.loadSuperAdminMatrix = async function() {
     }
 
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
       return;
     }
 
@@ -478,6 +525,9 @@ window.loadSuperAdminMatrix = async function() {
           <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
           <td>${p.home_address || 'N/A'}</td>
           <td class="coord-cell">${coordsDisplay}</td>
+          <td>
+            <button class="table-action-edit-btn" onclick="openEditProfileById('${p.id}')">✏️ Edit</button>
+          </td>
         </tr>
       `;
     }).join("");
@@ -488,7 +538,7 @@ window.loadSuperAdminMatrix = async function() {
 };
 
 // ==========================================
-// 7. STAFF COMMAND MATRIX (STRICT ZONE ISOLATION)
+// 8. STAFF COMMAND MATRIX (STRICT ZONE ISOLATION)
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -567,7 +617,7 @@ window.loadStaffMonitoringData = async function() {
 
     // 2. Zone Roster Table
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
     } else {
       tableBody.innerHTML = profiles.map(p => {
         const isCriticalSOS = activeSOSUserIds.has(String(p.id));
@@ -609,6 +659,9 @@ window.loadStaffMonitoringData = async function() {
             <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
             <td>${p.home_address || 'N/A'}</td>
             <td class="coord-cell">${coordsDisplay}</td>
+            <td>
+              <button class="table-action-edit-btn" onclick="openEditProfileById('${p.id}')">✏️ Edit</button>
+            </td>
           </tr>
         `;
       }).join("");
@@ -800,7 +853,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 8. PURGE & DELETE ZONE COMMAND CENTER
+// 9. PURGE & DELETE ZONE COMMAND CENTER
 // ==========================================
 window.handleDeleteCommandCenter = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
@@ -840,7 +893,7 @@ window.handleDeleteCommandCenter = async function() {
 };
 
 // ==========================================
-// 9. VOLUNTEER DISPATCH (ZONE ISOLATED)
+// 10. VOLUNTEER DISPATCH (ZONE ISOLATED)
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1041,7 +1094,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 10. VICTIM SCREEN: DUAL MAPS & CONTACTS
+// 11. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION & CONTACTS
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1183,7 +1236,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 11. SOS BROADCAST & STATE TRANSITION
+// 12. SOS BROADCAST & STATE TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1255,7 +1308,7 @@ function triggerVisualAlarm(activate) {
 }
 
 // ==========================================
-// 12. INDIVIDUAL USER ZONE EXIT & PURGE
+// 13. INDIVIDUAL USER ZONE EXIT & PURGE
 // ==========================================
 window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1290,7 +1343,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 13. BACKGROUND THEME ENGINE & LISTENERS
+// 14. BACKGROUND THEME ENGINE & FORM LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -1467,7 +1520,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. Fast User Registration
+  // 5. User Registration
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
@@ -1531,6 +1584,69 @@ window.addEventListener("DOMContentLoaded", () => {
       } finally {
         submitBtn.disabled = false;
         submitBtn.innerText = "Complete Registration";
+      }
+    });
+  }
+
+  // 6. Edit Profile Form Listener
+  const editProfileForm = document.getElementById("editProfileForm");
+  if (editProfileForm) {
+    editProfileForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const submitBtn = document.getElementById("editSubmitBtn");
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Saving Changes...";
+
+      const profileId = document.getElementById("editProfileId").value;
+      const updatedZone = document.getElementById("editZoneCode").value.trim().toUpperCase();
+
+      const payload = {
+        zone_code: updatedZone,
+        name: document.getElementById("editName").value.trim(),
+        age: parseInt(document.getElementById("editAge").value, 10),
+        gender: document.getElementById("editGender").value,
+        blood_group: document.getElementById("editBloodGroup").value,
+        phone: document.getElementById("editPhone").value.trim(),
+        emergency_contact_1: document.getElementById("editEmergency1").value.trim(),
+        emergency_phone_1: document.getElementById("editEmergencyPhone1").value.trim(),
+        emergency_contact_2: document.getElementById("editEmergency2")?.value.trim() || null,
+        emergency_phone_2: document.getElementById("editEmergencyPhone2")?.value.trim() || null,
+        home_address: document.getElementById("editHomeAddress").value.trim(),
+        is_tourist: document.getElementById("editIsTourist").checked,
+        is_volunteer: document.getElementById("editIsVolunteer").checked
+      };
+
+      try {
+        const { error } = await supabase
+          .from("profiles")
+          .update(payload)
+          .eq("id", profileId);
+
+        if (error) throw error;
+
+        // Sync active SOS/missions zone tags if zone changed
+        await Promise.all([
+          supabase.from("sos_events").update({ zone_code: updatedZone }).eq("user_id", profileId),
+          supabase.from("rescue_missions").update({ zone_code: updatedZone }).eq("volunteer_id", profileId),
+          supabase.from("rescue_missions").update({ zone_code: updatedZone }).eq("target_user_id", profileId)
+        ]);
+
+        alert("Profile updated successfully!");
+        window.closeModal();
+
+        updateUserStateView();
+        if (sessionStorage.getItem("staffAuthenticated") === "true") {
+          window.loadStaffMonitoringData();
+        }
+        if (sessionStorage.getItem("superAdminAuthenticated") === "true") {
+          window.loadSuperAdminMatrix();
+        }
+      } catch (err) {
+        alert(`Update error: ${err.message}`);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "💾 Save Changes";
       }
     });
   }
