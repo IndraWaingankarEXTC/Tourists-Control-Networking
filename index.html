@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tourist Safety Command Network</title>
   
-  <!-- Leaflet.js Real Map Styles -->
+  <!-- Leaflet.js Map Assets -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   
@@ -25,7 +25,7 @@
         <div class="brand-icon">TS</div>
         <div>
           <strong>Tourist Safety</strong>
-          <span id="activeNavbarZone">E2EE NETWORK</span>
+          <span id="activeNavbarZone">SECURE NETWORK</span>
         </div>
       </div>
       <div class="nav-links">
@@ -37,7 +37,7 @@
     <main id="portalGateway" class="page-view">
       <section class="hero">
         <div class="hero-content">
-          <div class="heritage-mark">SECURE DISPATCH & E2EE ENCRYPTED GRID</div>
+          <div class="heritage-mark">MULTI-DESTINATION DISPATCH GRID</div>
           <h1>Access Control<br><span>System</span></h1>
           <p>Select your access authorization level to enter the safety grid.</p>
         </div>
@@ -49,7 +49,7 @@
             <div class="card-content">
               <small>PUBLIC ENTRY</small>
               <h2>User Portal</h2>
-              <p>Register as a tourist or volunteer responder with client-side AES-GCM encryption.</p>
+              <p>Register as a tourist or volunteer responder under your destination code.</p>
             </div>
             <span class="arrow">→</span>
           </button>
@@ -83,7 +83,7 @@
     <main id="userPortal" class="page-view" style="display: none;">
       <section class="hero">
         <div class="hero-content">
-          <div class="heritage-mark">NATURE • HERITAGE • SAFETY (E2EE)</div>
+          <div class="heritage-mark">NATURE • HERITAGE • SAFETY</div>
           <h1>Tourist Safety<br><span>Dashboard</span></h1>
           <p>Explore safely with dynamic alerts and active field volunteer coordination.</p>
         </div>
@@ -130,7 +130,7 @@
           
           <div class="session-badge">
             <div class="badge-text">
-              <small>ACTIVE DESTINATION ZONE: <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span> • 🔒 E2EE Active</small>
+              <small>ACTIVE DESTINATION ZONE: <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span></small>
               <div><strong><span id="activeUserName">--</span></strong> (<span id="activeUserRole">--</span>)</div>
             </div>
             <button class="switch-user-btn" onclick="signOutCurrentUser()">Switch / Log Out</button>
@@ -146,10 +146,7 @@
               </div>
             </div>
 
-            <!-- Live Map Container for Victim -->
             <div id="victimLiveMap" class="whatsapp-live-map-window"></div>
-
-            <!-- Direct Responder Contact Cards -->
             <div id="victimResponderContacts" class="victim-contacts-list"></div>
           </div>
 
@@ -165,7 +162,7 @@
             </button>
           </div>
 
-          <!-- Self Opt-Out & Zone Exit Button -->
+          <!-- Leave Zone & Purge -->
           <div class="opt-out-wrapper">
             <button class="opt-out-btn" onclick="handleSelfOptOut()">
               <span>✕</span> Leave Event Zone & Purge My Telemetry
@@ -176,13 +173,13 @@
 
         <div class="safety-bar">
           <div class="safety-item">
-            <strong>AES-256 E2EE</strong>
-            <span>Client-side encrypted payload</span>
+            <strong>Zone Guard</strong>
+            <span>Isolated regional grid</span>
           </div>
           <div class="divider"></div>
           <div class="safety-item">
             <strong>Live Geolocation</strong>
-            <span>Hardware GPS synchronization</span>
+            <span>Sensor-driven GPS telemetry</span>
           </div>
           <div class="divider"></div>
           <div class="safety-item">
@@ -193,7 +190,7 @@
       </section>
     </main>
 
-    <!-- VIEW 2: STAFF LIVE MONITORING TABLE (ZONE ISOLATED) -->
+    <!-- VIEW 2: STAFF LIVE MONITORING TABLE -->
     <main id="staffPortal" class="page-view" style="display: none;">
       <section class="staff-dashboard">
         <div class="staff-header">
@@ -204,7 +201,7 @@
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="refresh-btn" onclick="loadStaffMonitoringData()">↻ Refresh</button>
             <button class="switch-user-btn" onclick="exitStaffPortal()">Log Out HQ</button>
-            <button class="switch-user-btn delete-zone-btn" onclick="handleDeleteCommandCenter()">🗑️ Delete Event Zone</button>
+            <button class="switch-user-btn delete-zone-btn" onclick="handleDeleteCommandCenter()">🗑️ Delete Zone</button>
           </div>
         </div>
 
@@ -281,7 +278,7 @@
         <div class="staff-header">
           <div>
             <h2>Website Head Master Overview</h2>
-            <p>Unified cross-destination registry of all tourist zones, staff units, and tourists (E2EE Decrypted View)</p>
+            <p>Unified cross-destination registry of all tourist zones, staff units, and tourists</p>
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="refresh-btn" onclick="loadSuperAdminMatrix()">↻ Refresh All</button>
@@ -327,7 +324,7 @@
                 <th>Status</th>
                 <th>Name</th>
                 <th>Role</th>
-                <th>Phone (E2EE Decrypted)</th>
+                <th>Phone</th>
                 <th>Blood Group</th>
                 <th>Emergency Contact</th>
                 <th>Address</th>
@@ -450,11 +447,11 @@
         </form>
       </section>
 
-      <!-- 5. USER REGISTRATION WITH E2EE -->
+      <!-- 5. USER REGISTRATION -->
       <section id="registrationPage" class="glass-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()">✕ Close</button>
-        <h2 id="registrationTitle">Registration (E2EE Protected)</h2>
-        <p class="form-subtitle">Your private data is client-side encrypted using AES-256 before leaving your device.</p>
+        <h2 id="registrationTitle">Registration</h2>
+        <p class="form-subtitle">Sync your details and join a destination safety network.</p>
 
         <form id="registrationForm">
           <div class="form-grid">
@@ -486,7 +483,7 @@
             </div>
 
             <div class="form-group">
-              <label for="bloodGroup">Blood Group (🔒 Encrypted)</label>
+              <label for="bloodGroup">Blood Group</label>
               <select id="bloodGroup" required>
                 <option value="" disabled selected>Select</option>
                 <option value="A+">A+</option>
@@ -501,17 +498,17 @@
             </div>
 
             <div class="form-group">
-              <label for="phone">Phone Number (🔒 Encrypted)</label>
+              <label for="phone">Phone Number</label>
               <input type="tel" id="phone" required placeholder="+91 9876543210">
             </div>
 
             <div class="form-group">
-              <label for="emergency1">Primary Emergency Contact (🔒 Encrypted)</label>
+              <label for="emergency1">Primary Emergency Contact</label>
               <input type="text" id="emergency1" required placeholder="Contact Name">
             </div>
 
             <div class="form-group">
-              <label for="emergencyPhone1">Primary Emergency Phone (🔒 Encrypted)</label>
+              <label for="emergencyPhone1">Primary Emergency Phone</label>
               <input type="tel" id="emergencyPhone1" required placeholder="+91 9876543211">
             </div>
 
@@ -526,7 +523,7 @@
             </div>
 
             <div class="form-group full-width">
-              <label for="homeAddress">Address / Local Stay (🔒 Encrypted)</label>
+              <label for="homeAddress">Address / Local Stay</label>
               <textarea id="homeAddress" rows="2" required placeholder="Hotel or local residence"></textarea>
             </div>
 
@@ -536,15 +533,15 @@
             </div>
           </div>
 
-          <button type="submit" class="submit-btn">Complete Encrypted Registration</button>
+          <button type="submit" class="submit-btn" id="regSubmitBtn">Complete Registration</button>
         </form>
       </section>
 
-      <!-- 6. REGISTRATION SUCCESS -->
+      <!-- 6. SUCCESS MESSAGE -->
       <section id="successPage" class="glass-modal status-card" style="display: none;">
         <div class="success-icon">✓</div>
         <h2>Registration Complete</h2>
-        <p id="successMessage">Your details are safely synced and encrypted.</p>
+        <p id="successMessage">Your details are safely synced.</p>
         <button class="submit-btn" onclick="closeModal()">Return to Dashboard</button>
       </section>
 
