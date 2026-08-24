@@ -229,6 +229,53 @@ body {
   color: #ffffff;
 }
 
+.geofence-status-banner {
+  width: 100%;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10b981;
+  border-radius: 14px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  backdrop-filter: blur(15px);
+  transition: all 0.3s ease;
+}
+
+.geofence-status-banner.breach {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  animation: pulseBreach 1s infinite alternate;
+}
+
+@keyframes pulseBreach {
+  from { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+  to { box-shadow: 0 0 25px rgba(239, 68, 68, 0.8); }
+}
+
+.geofence-indicator-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.geofence-indicator-dot.safe {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+}
+
+.geofence-indicator-dot.breach {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+  animation: pulseDot 0.6s infinite alternate;
+}
+
+@keyframes pulseDot {
+  from { transform: scale(0.8); }
+  to { transform: scale(1.3); }
+}
+
 .table-action-edit-btn {
   background: rgba(56, 189, 248, 0.2);
   border: 1px solid #38bdf8;
@@ -257,7 +304,6 @@ body {
   color: #ffffff !important;
 }
 
-/* Victim Live Aid Notification & Location Box */
 .victim-aid-status-box {
   width: 100%;
   background: rgba(14, 165, 233, 0.25);
@@ -281,7 +327,6 @@ body {
 .victim-aid-status-box strong { font-size: 15px; color: #e0f2fe; display: block; }
 .victim-aid-status-box p { font-size: 12px; color: #bae6fd; margin-top: 2px; }
 
-/* WhatsApp Style Live Location Window */
 .whatsapp-live-map-window {
   width: 100%;
   height: 240px;
@@ -323,7 +368,6 @@ body {
   font-size: 12px;
 }
 
-/* SOS Component */
 .sos-wrapper { width: 100%; margin-top: 5px; }
 .sos-button {
   width: 100%;
@@ -392,7 +436,6 @@ body {
 .safety-item span { font-size: 11px; color: rgba(255, 255, 255, 0.8); }
 .divider { height: 25px; width: 1px; background: rgba(255, 255, 255, 0.3); }
 
-/* Staff Command & Full-Width Roster */
 .staff-dashboard {
   width: 96%;
   max-width: 1440px;
@@ -441,7 +484,6 @@ body {
 .metric-box strong { display: block; font-size: 28px; margin-top: 4px; }
 .alert-box { border-color: rgba(255, 80, 80, 0.6); background: rgba(180, 30, 30, 0.3); color: #ff9b9b; }
 
-/* Super Admin Zone Cards */
 .zones-cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -458,7 +500,6 @@ body {
 .zone-summary-card strong { color: #ffe600; font-size: 14px; }
 .zone-summary-card small { display: block; color: rgba(255, 255, 255, 0.75); font-size: 11px; margin-top: 2px; }
 
-/* Multi-Victim Command Center Dispatch Queue */
 .command-dispatch-queue {
   display: flex;
   flex-direction: column;
@@ -495,7 +536,6 @@ body {
 .btn-yes { background: #22c55e; color: #022c0e; }
 .btn-no { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
 
-/* Multi-Case Field Deployment Layout */
 .responders-live-panel {
   background: rgba(14, 165, 233, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.4);
@@ -524,7 +564,6 @@ body {
   font-weight: 600;
 }
 
-/* Multi-Radar Grid Container */
 .multi-radar-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -554,7 +593,6 @@ body {
   text-align: center;
 }
 
-/* Custom Leaflet Map Pins */
 .custom-map-pin {
   display: flex;
   align-items: center;
@@ -614,9 +652,8 @@ body {
 .legend-badge { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .red-badge { background: #b31d1d; }
 .yellow-badge { background: #bfa11b; }
-.green-badge { background: rgba(255, 255, 255, 0.2); }
+.green-badge { background: rgba(52, 211, 153, 0.7); }
 
-/* Full-Width Table Formatting */
 .table-wrapper {
   width: 100% !important;
   max-width: 100% !important;
@@ -674,7 +711,6 @@ body {
 .tag-yellow { background: #ffd000; color: black; }
 .tag-green { background: rgba(255, 255, 255, 0.25); color: white; }
 
-/* Volunteer Floating HUD */
 .volunteer-hud {
   position: fixed;
   bottom: 24px;
@@ -730,7 +766,6 @@ body {
 .compass-telemetry { display: flex; justify-content: space-between; font-size: 12px; padding: 8px 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.2); }
 .compass-telemetry strong { color: #ffe600; font-family: monospace; }
 
-/* Modals */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -822,4 +857,33 @@ body.emergency-flash .website { background: rgba(180, 20, 20, 0.6) !important; }
   .form-grid { grid-template-columns: 1fr; }
   .safety-bar { flex-direction: column; gap: 12px; }
   .divider { width: 80%; height: 1px; }
+}
+
+.api-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 16px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.75);
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+.api-status.online {
+  color: #86efac;
+  border-color: rgba(134,239,172,0.45);
+  background: rgba(34,197,94,0.12);
+}
+.api-status.offline {
+  color: #fca5a5;
+  border-color: rgba(248,113,113,0.45);
+  background: rgba(220,38,38,0.12);
+}
+@media (max-width: 600px) {
+  .nav-links { display: flex; align-items: center; gap: 8px; }
+  .api-status { margin-right: 0; font-size: 8px; padding: 5px 7px; }
 }
