@@ -224,6 +224,17 @@ body {
   color: #ffffff;
 }
 
+.delete-zone-btn {
+  background: rgba(220, 38, 38, 0.35) !important;
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  color: #fca5a5 !important;
+}
+
+.delete-zone-btn:hover {
+  background: rgba(220, 38, 38, 0.7) !important;
+  color: #ffffff !important;
+}
+
 /* Victim Live Aid Notification & Location Box */
 .victim-aid-status-box {
   width: 100%;
@@ -502,7 +513,7 @@ body {
   text-align: center;
 }
 
-/* WhatsApp Custom Map Marker Styles */
+/* Custom Leaflet Map Pins */
 .custom-map-pin {
   display: flex;
   align-items: center;
