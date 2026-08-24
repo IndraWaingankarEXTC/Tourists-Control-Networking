@@ -152,12 +152,12 @@
             </button>
           </div>
 
-          <!-- Self Opt-Out Button -->
+          <!-- Self Opt-Out & Zone Exit Button -->
           <div class="opt-out-wrapper">
             <button class="opt-out-btn" onclick="handleSelfOptOut()">
-              <span>✕</span> End Trip & Opt Out of Tracking
+              <span>✕</span> Leave Event Zone & Purge My Telemetry
             </button>
-            <small class="opt-out-note">Permanently deletes your profile and real-time location telemetry.</small>
+            <small class="opt-out-note">Permanently removes you from this destination zone and wipes your real-time records.</small>
           </div>
         </div>
 
@@ -188,9 +188,10 @@
             <h2>Command Roster: <span id="staffZoneDisplayHeader" style="color: #ffd000;">--</span></h2>
             <p>Live synchronized safety monitoring & destination matrix</p>
           </div>
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="refresh-btn" onclick="loadStaffMonitoringData()">↻ Refresh</button>
             <button class="switch-user-btn" onclick="exitStaffPortal()">Log Out HQ</button>
+            <button class="switch-user-btn delete-zone-btn" onclick="handleDeleteCommandCenter()">🗑️ Delete Event Zone</button>
           </div>
         </div>
 
@@ -368,7 +369,7 @@
             <div class="form-group full-width" style="background: rgba(255, 208, 0, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 208, 0, 0.4);">
               <label for="regZoneCode" style="color: #ffd000; font-weight: 700;">Destination / Zone Code</label>
               <input type="text" id="regZoneCode" required placeholder="e.g. ZONE-A, GOA-NORTH" style="text-transform: uppercase; font-weight: 700; color: #fff;">
-              <small style="opacity: 0.8; font-size: 11px; margin-top: 3px;">Enter the code provided by your tour operator, hotel, or destination authority.</small>
+              <small style="opacity: 0.8; font-size: 11px; margin-top: 3px;">Enter the code provided by your tour operator, committee, or destination authority.</small>
             </div>
 
             <div class="form-group full-width">
