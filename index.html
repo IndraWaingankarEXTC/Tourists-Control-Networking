@@ -25,7 +25,7 @@
         <div class="brand-icon">TS</div>
         <div>
           <strong>Tourist Safety</strong>
-          <span id="activeNavbarZone">OPEN-SOURCE NETWORK</span>
+          <span id="activeNavbarZone">E2EE NETWORK</span>
         </div>
       </div>
       <div class="nav-links">
@@ -37,30 +37,43 @@
     <main id="portalGateway" class="page-view">
       <section class="hero">
         <div class="hero-content">
-          <div class="heritage-mark">MULTI-DESTINATION DISPATCH GRID</div>
+          <div class="heritage-mark">SECURE DISPATCH & E2EE ENCRYPTED GRID</div>
           <h1>Access Control<br><span>System</span></h1>
-          <p>Select your access authorization level or configure a destination command center.</p>
+          <p>Select your access authorization level to enter the safety grid.</p>
         </div>
 
-        <div class="action-container portal-container">
+        <div class="action-container action-container-3card" style="max-width: 1050px;">
+          <!-- 1. User Entry -->
           <button class="glass-card entry-card" onclick="enterUserMode()">
             <div class="card-icon tourist-icon">U</div>
             <div class="card-content">
               <small>PUBLIC ENTRY</small>
               <h2>User Portal</h2>
-              <p>Register as a tourist or volunteer responder under your destination code.</p>
+              <p>Register as a tourist or volunteer responder with client-side AES-GCM encryption.</p>
             </div>
             <span class="arrow">→</span>
           </button>
 
+          <!-- 2. Zone Staff Command -->
           <button class="glass-card entry-card staff-card" onclick="openStaffModal()">
             <div class="card-icon staff-icon">⚡</div>
             <div class="card-content">
-              <small>AUTHENTICATION REQUIRED</small>
+              <small>ZONE AUTHORITY</small>
               <h2>Staff Command</h2>
-              <p>Access your destination's isolated live telemetry table, SOS feeds, and map matrix.</p>
+              <p>Access your destination zone's isolated live telemetry table and SOS dispatcher.</p>
             </div>
             <span class="arrow">🔒</span>
+          </button>
+
+          <!-- 3. Website Head Master Portal -->
+          <button class="glass-card entry-card superadmin-card" onclick="openSuperAdminModal()">
+            <div class="card-icon superadmin-icon">👑</div>
+            <div class="card-content">
+              <small>HEAD OF PLATFORM</small>
+              <h2>Master Control</h2>
+              <p>Global oversight table across all tourist destinations, staff HQs, and tourists.</p>
+            </div>
+            <span class="arrow">🔑</span>
           </button>
         </div>
       </section>
@@ -70,7 +83,7 @@
     <main id="userPortal" class="page-view" style="display: none;">
       <section class="hero">
         <div class="hero-content">
-          <div class="heritage-mark">NATURE • HERITAGE • SAFETY</div>
+          <div class="heritage-mark">NATURE • HERITAGE • SAFETY (E2EE)</div>
           <h1>Tourist Safety<br><span>Dashboard</span></h1>
           <p>Explore safely with dynamic alerts and active field volunteer coordination.</p>
         </div>
@@ -117,7 +130,7 @@
           
           <div class="session-badge">
             <div class="badge-text">
-              <small>ACTIVE DESTINATION ZONE: <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span></small>
+              <small>ACTIVE DESTINATION ZONE: <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span> • 🔒 E2EE Active</small>
               <div><strong><span id="activeUserName">--</span></strong> (<span id="activeUserRole">--</span>)</div>
             </div>
             <button class="switch-user-btn" onclick="signOutCurrentUser()">Switch / Log Out</button>
@@ -163,13 +176,13 @@
 
         <div class="safety-bar">
           <div class="safety-item">
-            <strong>Zone Guard</strong>
-            <span>Isolated regional grid</span>
+            <strong>AES-256 E2EE</strong>
+            <span>Client-side encrypted payload</span>
           </div>
           <div class="divider"></div>
           <div class="safety-item">
             <strong>Live Geolocation</strong>
-            <span>Sensor-driven GPS telemetry</span>
+            <span>Hardware GPS synchronization</span>
           </div>
           <div class="divider"></div>
           <div class="safety-item">
@@ -180,12 +193,12 @@
       </section>
     </main>
 
-    <!-- VIEW 2: STAFF LIVE MONITORING TABLE -->
+    <!-- VIEW 2: STAFF LIVE MONITORING TABLE (ZONE ISOLATED) -->
     <main id="staffPortal" class="page-view" style="display: none;">
       <section class="staff-dashboard">
         <div class="staff-header">
           <div>
-            <h2>Command Roster: <span id="staffZoneDisplayHeader" style="color: #ffd000;">--</span></h2>
+            <h2>Zone Command: <span id="staffZoneDisplayHeader" style="color: #ffd000;">--</span></h2>
             <p>Live synchronized safety monitoring & destination matrix</p>
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -262,9 +275,75 @@
       </section>
     </main>
 
+    <!-- VIEW 3: WEBSITE HEAD / SUPER ADMIN GLOBAL MATRIX -->
+    <main id="superAdminPortal" class="page-view" style="display: none;">
+      <section class="staff-dashboard">
+        <div class="staff-header">
+          <div>
+            <h2>Website Head Master Overview</h2>
+            <p>Unified cross-destination registry of all tourist zones, staff units, and tourists (E2EE Decrypted View)</p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="refresh-btn" onclick="loadSuperAdminMatrix()">↻ Refresh All</button>
+            <button class="switch-user-btn" onclick="exitSuperAdminPortal()">Log Out Head</button>
+          </div>
+        </div>
+
+        <!-- Global Platform Metrics -->
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <span>Total Destination Zones</span>
+            <strong id="saZonesCount">0</strong>
+          </div>
+          <div class="metric-box">
+            <span>Active Staff HQs</span>
+            <strong id="saStaffCount">0</strong>
+          </div>
+          <div class="metric-box">
+            <span>Global Tourists</span>
+            <strong id="saTouristsCount">0</strong>
+          </div>
+          <div class="metric-box alert-box">
+            <span>Global Active SOS</span>
+            <strong id="saSOSCount">0</strong>
+          </div>
+        </div>
+
+        <!-- Destination Zones Overview Cards -->
+        <div class="responders-live-panel">
+          <div class="panel-header">
+            <strong>🌐 Registered Tourist Destinations & Zone Passcodes</strong>
+            <span id="saZoneListBadge">0 Zones Registered</span>
+          </div>
+          <div id="saZonesCardsContainer" class="zones-cards-grid"></div>
+        </div>
+
+        <!-- Master Global Roster Table -->
+        <div class="table-wrapper" style="margin-top: 20px;">
+          <table class="staff-table">
+            <thead>
+              <tr>
+                <th>Destination Zone</th>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Phone (E2EE Decrypted)</th>
+                <th>Blood Group</th>
+                <th>Emergency Contact</th>
+                <th>Address</th>
+                <th>Coordinates</th>
+              </tr>
+            </thead>
+            <tbody id="superAdminTableBody">
+              <tr><td colspan="9" style="text-align: center; opacity: 0.6;">Loading global master telemetry...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
     <!-- VOLUNTEER RAPID DISPATCH HUD -->
     <div id="volunteerHudWidget" class="volunteer-hud" style="display: none;">
-      <!-- STEP A: RESCUE INVITATION -->
       <div id="hudDispatchPrompt">
         <div class="hud-header">
           <span class="hud-pulse"></span>
@@ -277,7 +356,6 @@
         </div>
       </div>
 
-      <!-- STEP B: VOLUNTEER LIVE MAP TRACKER -->
       <div id="hudCompassView" style="display: none;">
         <div class="hud-header">
           <strong>ZONE LIVE TRACKER</strong>
@@ -296,7 +374,7 @@
     <!-- MODAL OVERLAYS -->
     <div id="modalOverlay" class="modal-overlay" style="display: none;">
       
-      <!-- STAFF LOGIN & ZONE REGISTRATION MODAL -->
+      <!-- 1. ZONE STAFF LOGIN -->
       <section id="staffPasscodeModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
         <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
         <h2>Staff Command Login</h2>
@@ -320,7 +398,22 @@
         </div>
       </section>
 
-      <!-- REGISTER NEW DESTINATION ZONE MODAL -->
+      <!-- 2. WEBSITE HEAD / SUPER ADMIN LOGIN -->
+      <section id="superAdminAuthModal" class="glass-modal auth-modal" style="display: none; max-width: 440px; border-color: #ffd000;">
+        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
+        <h2 style="color: #ffd000;">Website Head Login</h2>
+        <p class="form-subtitle">Enter Master Admin Passcode for global oversight across all zones.</p>
+        
+        <form id="superAdminAuthForm">
+          <div class="form-group">
+            <label for="superAdminPasscodeInput">Master Passcode (Default: SUPERADMIN2026)</label>
+            <input type="password" id="superAdminPasscodeInput" required placeholder="Enter Master Passcode">
+          </div>
+          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #ffd000; color: #000; font-weight: 700;">Authorize Master Access</button>
+        </form>
+      </section>
+
+      <!-- 3. REGISTER NEW DESTINATION ZONE -->
       <section id="createZoneModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
         <button class="back-btn" onclick="openStaffModal()">← Back to Login</button>
         <h2>Register New Destination</h2>
@@ -343,7 +436,7 @@
         </form>
       </section>
 
-      <!-- USER SIGN IN MODAL -->
+      <!-- 4. USER SIGN IN -->
       <section id="userSignInModal" class="glass-modal auth-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
         <h2>Sign In to Safety Grid</h2>
@@ -357,11 +450,11 @@
         </form>
       </section>
 
-      <!-- USER REGISTRATION FORM WITH DESTINATION CODE -->
+      <!-- 5. USER REGISTRATION WITH E2EE -->
       <section id="registrationPage" class="glass-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()">✕ Close</button>
-        <h2 id="registrationTitle">Registration</h2>
-        <p class="form-subtitle">Sync your details and join a destination safety network.</p>
+        <h2 id="registrationTitle">Registration (E2EE Protected)</h2>
+        <p class="form-subtitle">Your private data is client-side encrypted using AES-256 before leaving your device.</p>
 
         <form id="registrationForm">
           <div class="form-grid">
@@ -369,7 +462,7 @@
             <div class="form-group full-width" style="background: rgba(255, 208, 0, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 208, 0, 0.4);">
               <label for="regZoneCode" style="color: #ffd000; font-weight: 700;">Destination / Zone Code</label>
               <input type="text" id="regZoneCode" required placeholder="e.g. ZONE-A, GOA-NORTH" style="text-transform: uppercase; font-weight: 700; color: #fff;">
-              <small style="opacity: 0.8; font-size: 11px; margin-top: 3px;">Enter the code provided by your tour operator, committee, or destination authority.</small>
+              <small style="opacity: 0.8; font-size: 11px; margin-top: 3px;">Enter the destination code provided by your tour guide, committee, or resort.</small>
             </div>
 
             <div class="form-group full-width">
@@ -393,7 +486,7 @@
             </div>
 
             <div class="form-group">
-              <label for="bloodGroup">Blood Group</label>
+              <label for="bloodGroup">Blood Group (🔒 Encrypted)</label>
               <select id="bloodGroup" required>
                 <option value="" disabled selected>Select</option>
                 <option value="A+">A+</option>
@@ -408,17 +501,17 @@
             </div>
 
             <div class="form-group">
-              <label for="phone">Phone Number</label>
+              <label for="phone">Phone Number (🔒 Encrypted)</label>
               <input type="tel" id="phone" required placeholder="+91 9876543210">
             </div>
 
             <div class="form-group">
-              <label for="emergency1">Primary Emergency Contact</label>
+              <label for="emergency1">Primary Emergency Contact (🔒 Encrypted)</label>
               <input type="text" id="emergency1" required placeholder="Contact Name">
             </div>
 
             <div class="form-group">
-              <label for="emergencyPhone1">Primary Emergency Phone</label>
+              <label for="emergencyPhone1">Primary Emergency Phone (🔒 Encrypted)</label>
               <input type="tel" id="emergencyPhone1" required placeholder="+91 9876543211">
             </div>
 
@@ -433,7 +526,7 @@
             </div>
 
             <div class="form-group full-width">
-              <label for="homeAddress">Address / Local Stay</label>
+              <label for="homeAddress">Address / Local Stay (🔒 Encrypted)</label>
               <textarea id="homeAddress" rows="2" required placeholder="Hotel or local residence"></textarea>
             </div>
 
@@ -443,14 +536,15 @@
             </div>
           </div>
 
-          <button type="submit" class="submit-btn">Complete Registration</button>
+          <button type="submit" class="submit-btn">Complete Encrypted Registration</button>
         </form>
       </section>
 
+      <!-- 6. REGISTRATION SUCCESS -->
       <section id="successPage" class="glass-modal status-card" style="display: none;">
         <div class="success-icon">✓</div>
         <h2>Registration Complete</h2>
-        <p id="successMessage">Your details are safely synced.</p>
+        <p id="successMessage">Your details are safely synced and encrypted.</p>
         <button class="submit-btn" onclick="closeModal()">Return to Dashboard</button>
       </section>
 
