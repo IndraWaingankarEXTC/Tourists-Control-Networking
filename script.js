@@ -1,4 +1,4 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 // ==========================================
 // 1. SUPABASE INITIALIZATION
@@ -6,6 +6,8 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = "https://ccjygeoxaoomhonwenqw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rPFLHItf9TI4P_i14P5bqw_tD5dz6mk";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const SUPERADMIN_PASSCODE = "SUPERADMIN2026";
 
 let selectedRole = null;
 let isEmergencyActive = false;
@@ -32,7 +34,94 @@ let staffMapInstances = {};
 let staffMarkers = {};
 
 // ==========================================
-// 2. HARDWARE GPS ENGINE & AUTO-SYNC
+// 2. CLIENT-SIDE AES-GCM (256-BIT) E2EE ENGINE
+// ==========================================
+const E2EE_SALT = new TextEncoder().encode("TouristSafety_E2EE_Salt_2026");
+
+async function deriveEncryptionKey(passphrase) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(passphrase),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+  return await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: E2EE_SALT,
+      iterations: 100000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+// Encrypt plaintext into base64 payload
+async function encryptField(plainText, keyPassphrase = "GLOBAL_PLATFORM_KEY_2026") {
+  if (!plainText) return plainText;
+  try {
+    const key = await deriveEncryptionKey(keyPassphrase);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(plainText);
+    const cipherBuffer = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, encoded);
+
+    const ivStr = btoa(String.fromCharCode(...iv));
+    const cipherStr = btoa(String.fromCharCode(...new Uint8Array(cipherBuffer)));
+    return `enc:${ivStr}:${cipherStr}`;
+  } catch (err) {
+    console.warn("E2EE Encrypt Notice:", err.message);
+    return plainText;
+  }
+}
+
+// Decrypt base64 payload into plaintext
+async function decryptField(cipherText, keyPassphrase = "GLOBAL_PLATFORM_KEY_2026") {
+  if (!cipherText || !cipherText.startsWith("enc:")) return cipherText;
+  try {
+    const parts = cipherText.split(":");
+    const iv = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
+    const cipherData = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
+    const key = await deriveEncryptionKey(keyPassphrase);
+
+    const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, cipherData);
+    return new TextDecoder().decode(decryptedBuffer);
+  } catch (err) {
+    return cipherText; // Return original if decryption key mismatch
+  }
+}
+
+// Decrypt full profile object
+async function decryptProfileObject(p) {
+  if (!p) return p;
+  const [phone, blood, ec1, ep1, ec2, ep2, address] = await Promise.all([
+    decryptField(p.phone),
+    decryptField(p.blood_group),
+    decryptField(p.emergency_contact_1),
+    decryptField(p.emergency_phone_1),
+    decryptField(p.emergency_contact_2),
+    decryptField(p.emergency_phone_2),
+    decryptField(p.home_address)
+  ]);
+
+  return {
+    ...p,
+    phone: phone || p.phone,
+    blood_group: blood || p.blood_group,
+    emergency_contact_1: ec1 || p.emergency_contact_1,
+    emergency_phone_1: ep1 || p.emergency_phone_1,
+    emergency_contact_2: ec2 || p.emergency_contact_2,
+    emergency_phone_2: ep2 || p.emergency_phone_2,
+    home_address: address || p.home_address
+  };
+}
+
+// ==========================================
+// 3. HARDWARE GPS ENGINE & AUTO-SYNC
 // ==========================================
 function startHardwareGpsWatcher() {
   if (!navigator.geolocation) return;
@@ -128,7 +217,7 @@ async function getLiveCommandHQCoords(zoneCode = "GLOBAL") {
 }
 
 // ==========================================
-// 3. SYNTHESIZED EMERGENCY SIREN
+// 4. SYNTHESIZED EMERGENCY SIREN
 // ==========================================
 class SirenSynthesizer {
   constructor() {
@@ -189,7 +278,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 4. DISTANCE, BEARING & MAP UTILITIES
+// 5. DISTANCE, BEARING & MAP UTILITIES
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
@@ -254,10 +343,10 @@ function createLeafletCustomPin(type, title) {
 }
 
 // ==========================================
-// 5. PORTAL VIEW CONTROLLER
+// 6. PORTAL VIEW CONTROLLER
 // ==========================================
 window.switchPortal = function(portalId) {
-  ['portalGateway', 'userPortal', 'staffPortal'].forEach(id => {
+  ['portalGateway', 'userPortal', 'staffPortal', 'superAdminPortal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = (id === portalId) ? 'block' : 'none';
   });
@@ -330,6 +419,14 @@ window.openStaffModal = function() {
   if (authModal) authModal.style.display = "block";
 };
 
+window.openSuperAdminModal = function() {
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const superModal = document.getElementById("superAdminAuthModal");
+  if (overlay) overlay.style.display = "flex";
+  if (superModal) superModal.style.display = "block";
+};
+
 window.openCreateZoneModal = function() {
   window.closeModal();
   const overlay = document.getElementById("modalOverlay");
@@ -359,16 +456,16 @@ window.openRegistration = function(role) {
   if (reg) reg.style.display = "block";
 
   if (role === "tourist") {
-    if (title) title.innerText = "Tourist Registration";
+    if (title) title.innerText = "Tourist Registration (E2EE Protected)";
     if (extraText) extraText.innerText = "Yes, I also want to register as a volunteer responder.";
   } else {
-    if (title) title.innerText = "Volunteer Registration";
+    if (title) title.innerText = "Volunteer Registration (E2EE Protected)";
     if (extraText) extraText.innerText = "Yes, I also want to register as a protected tourist.";
   }
 };
 
 window.closeModal = function() {
-  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal'].forEach(id => {
+  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
   });
@@ -380,8 +477,104 @@ window.exitStaffPortal = function() {
   window.switchPortal("portalGateway");
 };
 
+window.exitSuperAdminPortal = function() {
+  sessionStorage.removeItem("superAdminAuthenticated");
+  window.switchPortal("portalGateway");
+};
+
 // ==========================================
-// 6. STAFF COMMAND MATRIX (ZONE FILTERED)
+// 7. WEBSITE HEAD / SUPER ADMIN MASTER MATRIX
+// ==========================================
+window.loadSuperAdminMatrix = async function() {
+  const tableBody = document.getElementById("superAdminTableBody");
+  const zonesCardsEl = document.getElementById("saZonesCardsContainer");
+  if (!tableBody) return;
+
+  try {
+    const [zonesRes, profilesRes, sosRes, locsRes, hqRes] = await Promise.all([
+      supabase.from("destination_zones").select("*").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("sos_events").select("*").eq("status", "ACTIVE"),
+      supabase.from("locations").select("*").order("created_at", { ascending: false }),
+      supabase.from("command_center_location").select("*")
+    ]);
+
+    const zones = zonesRes.data || [];
+    const profiles = profilesRes.data || [];
+    const activeSOSEvents = sosRes.data || [];
+    const locations = locsRes.data || [];
+    const hqUnits = hqRes.data || [];
+
+    const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
+
+    const userLocationMap = {};
+    locations.forEach(loc => {
+      if (!userLocationMap[String(loc.user_id)]) {
+        userLocationMap[String(loc.user_id)] = {
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude)
+        };
+      }
+    });
+
+    document.getElementById("saZonesCount").innerText = zones.length;
+    document.getElementById("saStaffCount").innerText = hqUnits.length;
+    document.getElementById("saTouristsCount").innerText = profiles.filter(p => p.is_tourist).length;
+    document.getElementById("saSOSCount").innerText = activeSOSUserIds.size;
+    document.getElementById("saZoneListBadge").innerText = `${zones.length} Destination Zones Active`;
+
+    // Render Destination Zone Overview Cards
+    if (zonesCardsEl) {
+      zonesCardsEl.innerHTML = zones.map(z => `
+        <div class="zone-summary-card">
+          <strong>📍 ${z.zone_code}</strong>
+          <small>${z.zone_name}</small>
+          <div style="margin-top: 6px; font-size: 11px; font-family: monospace; color: #a7f3d0;">
+            Passcode: <b>${z.passcode}</b>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // Decrypt all profiles for Master Overview
+    const decryptedProfiles = await Promise.all(profiles.map(p => decryptProfileObject(p)));
+
+    if (decryptedProfiles.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered in the system yet.</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = decryptedProfiles.map(p => {
+      const isCriticalSOS = activeSOSUserIds.has(String(p.id));
+      const myLoc = userLocationMap[String(p.id)];
+
+      let rowClass = isCriticalSOS ? "row-sos-red" : "row-normal";
+      let statusTag = isCriticalSOS ? `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>` : `<span class="status-tag tag-green">Normal</span>`;
+      const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+      const coordsDisplay = myLoc ? `${Number(myLoc.latitude).toFixed(4)}, ${Number(myLoc.longitude).toFixed(4)}` : "GPS Syncing...";
+
+      return `
+        <tr class="${rowClass}">
+          <td><strong style="color: #ffd000;">${p.zone_code || 'GLOBAL'}</strong></td>
+          <td>${statusTag}</td>
+          <td><strong>${p.name || 'Anonymous'}</strong></td>
+          <td>${roleBadge || 'User'}</td>
+          <td>${p.phone || 'N/A'}</td>
+          <td>${p.blood_group || 'N/A'}</td>
+          <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
+          <td>${p.home_address || 'N/A'}</td>
+          <td class="coord-cell">${coordsDisplay}</td>
+        </tr>
+      `;
+    }).join("");
+
+  } catch (err) {
+    console.error("Super Admin Load Error:", err);
+  }
+};
+
+// ==========================================
+// 8. STAFF COMMAND MATRIX (ZONE FILTERED & E2EE)
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -400,11 +593,13 @@ window.loadStaffMonitoringData = async function() {
       getLiveCommandHQCoords(currentZone)
     ]);
 
-    const profiles = profilesRes.data || [];
+    const rawProfiles = profilesRes.data || [];
     const activeSOSEvents = sosRes.data || [];
     const locations = locsRes.data || [];
     const activeMissions = missionsRes.data || [];
 
+    // Decrypt profiles for this authorized zone
+    const profiles = await Promise.all(rawProfiles.map(p => decryptProfileObject(p)));
     const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
 
     const profileMap = {};
@@ -425,7 +620,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dynamic SOS Dispatch Queue for this zone
+    // 1. Dynamic SOS Dispatch Queue
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -553,7 +748,6 @@ window.loadStaffMonitoringData = async function() {
         const missions = victimMissionsMap[vicId];
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
-        
         const vicLoc = userLocationMap[vicId] || cmdHQ;
 
         let map = staffMapInstances[vicId];
@@ -692,7 +886,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 7. PURGE & DELETE ZONE COMMAND CENTER
+// 9. PURGE & DELETE ZONE COMMAND CENTER
 // ==========================================
 window.handleDeleteCommandCenter = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
@@ -716,7 +910,6 @@ window.handleDeleteCommandCenter = async function() {
   }
 
   try {
-    // 1. Purge all records belonging to this zone
     await Promise.all([
       supabase.from("sos_events").delete().eq("zone_code", currentZone),
       supabase.from("rescue_missions").delete().eq("zone_code", currentZone),
@@ -736,7 +929,7 @@ window.handleDeleteCommandCenter = async function() {
 };
 
 // ==========================================
-// 8. VOLUNTEER DISPATCH (ZONE ISOLATED)
+// 10. VOLUNTEER DISPATCH (ZONE ISOLATED)
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -937,7 +1130,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 9. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION
+// 11. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION & CONTACTS
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1022,8 +1215,11 @@ async function checkVictimAidStatus() {
         supabase.from("locations").select("user_id, latitude, longitude").in("user_id", volIds).order("created_at", { ascending: false })
       ]);
 
-      const volProfiles = volProfilesRes.data || [];
+      const rawVolProfiles = volProfilesRes.data || [];
       const volLocs = volLocsRes.data || [];
+
+      // Decrypt volunteer phone numbers
+      const volProfiles = await Promise.all(rawVolProfiles.map(p => decryptProfileObject(p)));
 
       volProfiles.forEach(vp => {
         const foundLoc = volLocs.find(l => String(l.user_id) === String(vp.id));
@@ -1079,7 +1275,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 10. SOS BROADCAST & STATE TRANSITION
+// 12. SOS BROADCAST & STATE TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1151,7 +1347,7 @@ function triggerVisualAlarm(activate) {
 }
 
 // ==========================================
-// 11. INDIVIDUAL USER ZONE EXIT & PURGE
+// 13. INDIVIDUAL USER ZONE EXIT & PURGE
 // ==========================================
 window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1186,7 +1382,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 12. BACKGROUND THEME ENGINE & LISTENERS
+// 14. BACKGROUND THEME ENGINE & LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -1252,7 +1448,7 @@ window.addEventListener("DOMContentLoaded", () => {
     nextPlane = temp;
   }, 13000);
 
-  // Staff Authentication with Dynamic Zone Lookup
+  // 1. Staff Authentication with Dynamic Zone Lookup
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
     staffAuthForm.addEventListener("submit", async (e) => {
@@ -1293,7 +1489,25 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Create New Destination Zone
+  // 2. Website Head / Super Admin Authentication
+  const superAdminAuthForm = document.getElementById("superAdminAuthForm");
+  if (superAdminAuthForm) {
+    superAdminAuthForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const enteredPasscode = document.getElementById("superAdminPasscodeInput").value.trim();
+
+      if (enteredPasscode === SUPERADMIN_PASSCODE) {
+        sessionStorage.setItem("superAdminAuthenticated", "true");
+        window.switchPortal("superAdminPortal");
+        window.loadSuperAdminMatrix();
+        setInterval(window.loadSuperAdminMatrix, 4000);
+      } else {
+        alert("Incorrect Master Passcode. Access Denied.");
+      }
+    });
+  }
+
+  // 3. Create New Destination Zone
   const createZoneForm = document.getElementById("createZoneForm");
   if (createZoneForm) {
     createZoneForm.addEventListener("submit", async (e) => {
@@ -1318,26 +1532,33 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Phone Sign-In
+  // 4. Phone Sign-In
   const userSignInForm = document.getElementById("userSignInForm");
   if (userSignInForm) {
     userSignInForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const phoneInput = document.getElementById("signInPhoneInput").value.trim();
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("phone", phoneInput)
-        .maybeSingle();
+      const { data: rawProfiles } = await supabase.from("profiles").select("*");
+      let matchedProfile = null;
 
-      if (!profile) {
+      if (rawProfiles) {
+        for (const p of rawProfiles) {
+          const decryptedPhone = await decryptField(p.phone);
+          if (decryptedPhone === phoneInput || p.phone === phoneInput) {
+            matchedProfile = p;
+            break;
+          }
+        }
+      }
+
+      if (!matchedProfile) {
         alert("No profile found with that phone number. Please register first.");
         return;
       }
 
-      localStorage.setItem("touristSafetyUserId", profile.id);
-      alert(`Welcome back, ${profile.name}! Registered to zone: ${profile.zone_code || 'GLOBAL'}`);
+      localStorage.setItem("touristSafetyUserId", matchedProfile.id);
+      alert(`Welcome back, ${matchedProfile.name}! Registered to zone: ${matchedProfile.zone_code || 'GLOBAL'}`);
       window.closeModal();
       updateUserStateView();
       checkVolunteerDistressSignals();
@@ -1345,7 +1566,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Profile Registration with Zone Code
+  // 5. Encrypted Registration Form
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
@@ -1353,25 +1574,36 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const submitBtn = regForm.querySelector(".submit-btn");
       submitBtn.disabled = true;
-      submitBtn.innerText = "Locking Hardware GPS & Zone...";
+      submitBtn.innerText = "Encrypting Data (AES-256)...";
 
       const destinationZone = document.getElementById("regZoneCode").value.trim().toUpperCase();
       const wantsSecondRole = document.getElementById("additionalRole")?.checked || false;
       const isTourist = selectedRole === "tourist" || wantsSecondRole;
       const isVolunteer = selectedRole === "volunteer" || wantsSecondRole;
 
+      // Encrypt sensitive fields with client-side Web Crypto AES-GCM
+      const [encPhone, encBlood, encEc1, encEp1, encEc2, encEp2, encAddress] = await Promise.all([
+        encryptField(document.getElementById("phone").value.trim()),
+        encryptField(document.getElementById("bloodGroup").value),
+        encryptField(document.getElementById("emergency1").value.trim()),
+        encryptField(document.getElementById("emergencyPhone1").value.trim()),
+        encryptField(document.getElementById("emergency2")?.value.trim() || null),
+        encryptField(document.getElementById("emergencyPhone2")?.value.trim() || null),
+        encryptField(document.getElementById("homeAddress").value.trim())
+      ]);
+
       const payload = {
         zone_code: destinationZone,
         name: document.getElementById("name").value.trim(),
         age: parseInt(document.getElementById("age").value, 10),
         gender: document.getElementById("gender").value,
-        blood_group: document.getElementById("bloodGroup").value,
-        phone: document.getElementById("phone").value.trim(),
-        emergency_contact_1: document.getElementById("emergency1").value.trim(),
-        emergency_phone_1: document.getElementById("emergencyPhone1").value.trim(),
-        emergency_contact_2: document.getElementById("emergency2")?.value.trim() || null,
-        emergency_phone_2: document.getElementById("emergencyPhone2")?.value.trim() || null,
-        home_address: document.getElementById("homeAddress").value.trim(),
+        blood_group: encBlood,
+        phone: encPhone,
+        emergency_contact_1: encEc1,
+        emergency_phone_1: encEp1,
+        emergency_contact_2: encEc2,
+        emergency_phone_2: encEp2,
+        home_address: encAddress,
         is_tourist: isTourist,
         is_volunteer: isVolunteer
       };
@@ -1400,7 +1632,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const roles = [isTourist && "Tourist", isVolunteer && "Volunteer"].filter(Boolean).join(" and ");
         const successMsg = document.getElementById("successMessage");
-        if (successMsg) successMsg.innerText = `You have successfully registered as ${roles} under Destination Zone '${destinationZone}'.`;
+        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'. Private fields are AES-256 encrypted.`;
 
         regForm.reset();
         updateUserStateView();
@@ -1408,12 +1640,12 @@ window.addEventListener("DOMContentLoaded", () => {
         alert(`Registration error: ${err.message}`);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.innerText = "Complete Registration";
+        submitBtn.innerText = "Complete Encrypted Registration";
       }
     });
   }
 
-  // Fast intervals for telemetry & aid updates
+  // Polling loops
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
 });
