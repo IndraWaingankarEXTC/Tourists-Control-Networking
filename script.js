@@ -692,7 +692,51 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 7. VOLUNTEER DISPATCH (ZONE ISOLATED)
+// 7. PURGE & DELETE ZONE COMMAND CENTER
+// ==========================================
+window.handleDeleteCommandCenter = async function() {
+  const currentZone = sessionStorage.getItem("staffZoneCode");
+  if (!currentZone) {
+    alert("No active command center session.");
+    return;
+  }
+
+  const confirmCode = prompt(`DANGER: This will permanently delete destination zone '${currentZone}' and purge all associated tourists, volunteers, and SOS alerts.\n\nEnter the Admin Passcode for '${currentZone}' to confirm:`);
+  if (!confirmCode) return;
+
+  const { data: zoneRecord } = await supabase
+    .from("destination_zones")
+    .select("passcode")
+    .eq("zone_code", currentZone)
+    .maybeSingle();
+
+  if (!zoneRecord || zoneRecord.passcode !== confirmCode.trim()) {
+    alert("Passcode verification failed. Zone deletion aborted.");
+    return;
+  }
+
+  try {
+    // 1. Purge all records belonging to this zone
+    await Promise.all([
+      supabase.from("sos_events").delete().eq("zone_code", currentZone),
+      supabase.from("rescue_missions").delete().eq("zone_code", currentZone),
+      supabase.from("command_center_location").delete().eq("zone_code", currentZone),
+      supabase.from("profiles").delete().eq("zone_code", currentZone),
+      supabase.from("destination_zones").delete().eq("zone_code", currentZone)
+    ]);
+
+    sessionStorage.removeItem("staffAuthenticated");
+    sessionStorage.removeItem("staffZoneCode");
+
+    alert(`Destination Zone '${currentZone}' and all associated telemetry have been permanently deleted.`);
+    window.switchPortal("portalGateway");
+  } catch (err) {
+    alert(`Failed to delete zone: ${err.message}`);
+  }
+};
+
+// ==========================================
+// 8. VOLUNTEER DISPATCH (ZONE ISOLATED)
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -718,7 +762,6 @@ async function checkVolunteerDistressSignals() {
       return;
     }
 
-    // Only query active SOS events inside this user's registered destination zone
     const { data: sosEvents } = await supabase
       .from("sos_events")
       .select("*")
@@ -846,7 +889,6 @@ async function updateVolunteerLocationConvergence(zoneCode) {
   const bearing = calculateBearing(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
   const routeInfo = calculateRouteAndETA(distKm);
 
-  // Persistent Volunteer Live Map Window
   const mapContainer = document.getElementById("volunteerLiveMap");
   if (mapContainer) {
     if (!volunteerMapInstance) {
@@ -895,7 +937,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 8. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION
+// 9. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1037,7 +1079,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 9. SOS BROADCAST & STATE TRANSITION
+// 10. SOS BROADCAST & STATE TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1109,7 +1151,7 @@ function triggerVisualAlarm(activate) {
 }
 
 // ==========================================
-// 10. SELF-SERVICE OPT-OUT
+// 11. INDIVIDUAL USER ZONE EXIT & PURGE
 // ==========================================
 window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1118,7 +1160,7 @@ window.handleSelfOptOut = async function() {
     return;
   }
 
-  const confirmed = confirm("Are you sure you want to end your trip and opt out of tracking?");
+  const confirmed = confirm("Are you sure you want to leave this event zone? This will permanently delete your registration and real-time location telemetry.");
   if (!confirmed) return;
 
   try {
@@ -1136,15 +1178,15 @@ window.handleSelfOptOut = async function() {
       window.handleSOSToggle();
     }
 
-    alert("Your profile has been purged from the safety network.");
+    alert("You have left the event zone. Your telemetry has been completely purged.");
     window.switchPortal("portalGateway");
   } catch (err) {
-    alert(`Failed to opt out: ${err.message}`);
+    alert(`Failed to leave zone: ${err.message}`);
   }
 };
 
 // ==========================================
-// 11. BACKGROUND THEME ENGINE & LISTENERS
+// 12. BACKGROUND THEME ENGINE & LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
