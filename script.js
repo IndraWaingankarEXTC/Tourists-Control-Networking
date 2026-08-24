@@ -53,9 +53,8 @@ let lastGeofenceCheckinTime = 0;
 let checkinCountdownInterval = null;
 
 // ==========================================
-// 2. HIGH-PRECISION CONTINUOUS GPS TRACKER
+// 2. ULTRA-FAST HIGH-PRECISION GPS ENGINE
 // ==========================================
-
 async function requestScreenWakeLock() {
   try {
     if ('wakeLock' in navigator) {
@@ -66,7 +65,7 @@ async function requestScreenWakeLock() {
   }
 }
 
-// Push live telemetry directly to Supabase and update local map
+// Push live telemetry to Supabase instantly (Dual Update to Profiles & Locations)
 async function broadcastLocationTelemetry(lat, lon, accuracy) {
   verifiedGpsCoords = { latitude: lat, longitude: lon };
   verifiedGpsAccuracy = accuracy || 5;
@@ -75,7 +74,7 @@ async function broadcastLocationTelemetry(lat, lon, accuracy) {
   const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
   const staffZone = sessionStorage.getItem("staffZoneCode");
 
-  // 1. Direct profile update for instant table rendering
+  // Dual write for instantaneous table & telemetry reading
   if (userId) {
     await Promise.all([
       supabase.from("profiles").update({
@@ -91,7 +90,6 @@ async function broadcastLocationTelemetry(lat, lon, accuracy) {
     ]);
   }
 
-  // 2. Direct HQ update
   if (isStaffActive && staffZone) {
     await supabase.from("command_center_location").upsert({
       id: `HQ_${staffZone}`,
@@ -102,13 +100,11 @@ async function broadcastLocationTelemetry(lat, lon, accuracy) {
     });
   }
 
-  // 3. Update tourist map marker live
   if (touristOverviewMapInstance && touristOverviewMarker) {
     touristOverviewMarker.setLatLng([lat, lon]);
   }
 }
 
-// Continuous Precision GPS Watcher
 function startHighPrecisionGpsWatcher() {
   if (!navigator.geolocation) return;
 
@@ -118,16 +114,16 @@ function startHighPrecisionGpsWatcher() {
     navigator.geolocation.clearWatch(gpsWatchId);
   }
 
-  // Initial fast fix
+  // Fast-Fix 1: Instant cached network A-GPS
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       broadcastLocationTelemetry(Number(pos.coords.latitude), Number(pos.coords.longitude), Math.round(pos.coords.accuracy));
     },
-    (err) => console.warn("Initial GPS lock note:", err.message),
-    { enableHighAccuracy: true, timeout: 4000, maximumAge: 1000 }
+    (err) => console.warn("Fast GPS lock note:", err.message),
+    { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
   );
 
-  // Continuous satellite streaming
+  // Fast-Fix 2: Continuous real-time satellite stream
   gpsWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       const lat = Number(pos.coords.latitude);
@@ -135,8 +131,8 @@ function startHighPrecisionGpsWatcher() {
       const acc = Math.round(pos.coords.accuracy);
       broadcastLocationTelemetry(lat, lon, acc);
     },
-    (err) => console.warn("GPS tracking watcher note:", err.message),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    (err) => console.warn("Continuous GPS watch note:", err.message),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
 }
 
@@ -160,7 +156,7 @@ async function getLiveGpsCoordinates() {
         resolved = true;
         resolve(verifiedGpsCoords || { latitude: 18.9894, longitude: 73.1175 });
       }
-    }, 2500);
+    }, 2000);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -181,7 +177,7 @@ async function getLiveGpsCoordinates() {
           resolve(verifiedGpsCoords || { latitude: 18.9894, longitude: 73.1175 });
         }
       },
-      { enableHighAccuracy: true, timeout: 2300, maximumAge: 1000 }
+      { enableHighAccuracy: true, timeout: 1800, maximumAge: 2000 }
     );
   });
 }
@@ -202,7 +198,7 @@ async function getLiveCommandHQCoords(zoneCode) {
 }
 
 // ==========================================
-// 3. SYNTHESIZED EMERGENCY SIREN
+// 3. SYNTHESIZED EMERGENCY SIREN & CHIME
 // ==========================================
 class SirenSynthesizer {
   constructor() {
@@ -218,6 +214,23 @@ class SirenSynthesizer {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       this.audioCtx = new AudioContextClass();
     }
+  }
+
+  playWarningBeep() {
+    this.init();
+    if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, this.audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.25, this.audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.4);
+
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+    osc.start();
+    osc.stop(this.audioCtx.currentTime + 0.4);
   }
 
   start() {
@@ -328,12 +341,15 @@ function createLeafletCustomPin(type, title) {
 }
 
 // ==========================================
-// 5. GEOFENCE BOUNDARY & AI CHECK-IN WATCHDOG
+// 5. GEOFENCE BOUNDARY & INSTANT CHECK-IN
 // ==========================================
 async function fetchNearbyAIContext(lat, lon) {
   try {
-    const query = `[out:json][timeout:4];(node(around:65,${lat},${lon})["amenity"~"restaurant|cafe|fast_food|bar|food_court"];node(around:65,${lat},${lon})["tourism"~"attraction|viewpoint|museum|hotel|artwork"];);out body 2;`;
-    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const query = `[out:json][timeout:2];(node(around:65,${lat},${lon})["amenity"~"restaurant|cafe|fast_food|bar|food_court"];node(around:65,${lat},${lon})["tourism"~"attraction|viewpoint|museum|hotel|artwork"];);out body 2;`;
+    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     const data = await res.json();
 
     if (data && data.elements && data.elements.length > 0) {
@@ -343,7 +359,7 @@ async function fetchNearbyAIContext(lat, lon) {
       return { found: true, name: name, type: type };
     }
   } catch (err) {
-    console.warn("AI POI lookup note:", err.message);
+    console.warn("AI context note:", err.message);
   }
   return { found: false };
 }
@@ -355,9 +371,8 @@ async function checkTouristGeofenceBoundary() {
   const { data: profile } = await supabase.from("profiles").select("zone_code, is_tourist").eq("id", userId).maybeSingle();
   if (!profile || !profile.is_tourist || !profile.zone_code) return;
 
-  const currentZone = profile.zone_code;
+  const currentZone = profile.zone_code.toUpperCase();
 
-  // Retrieve destination zone geofence center and radius
   const { data: zoneRecord } = await supabase
     .from("destination_zones")
     .select("geofence_lat, geofence_lon, geofence_radius_km")
@@ -366,7 +381,6 @@ async function checkTouristGeofenceBoundary() {
 
   const myCoords = await getLiveGpsCoordinates();
 
-  // If geofence center has not been explicitly saved yet, initialize it once
   let centerLat = zoneRecord?.geofence_lat;
   let centerLon = zoneRecord?.geofence_lon;
   let radiusKm = zoneRecord?.geofence_radius_km || 2.5;
@@ -383,7 +397,6 @@ async function checkTouristGeofenceBoundary() {
 
   activeZoneGeofence = { latitude: centerLat, longitude: centerLon, radiusKm: radiusKm };
 
-  // Render tourist map with green shaded safe perimeter
   renderTouristOverviewMap(myCoords, activeZoneGeofence);
 
   const distFromCenter = calculateDistanceKm(myCoords.latitude, myCoords.longitude, centerLat, centerLon);
@@ -398,18 +411,17 @@ async function checkTouristGeofenceBoundary() {
     if (banner) banner.classList.add("breach");
     if (dot) { dot.className = "geofence-indicator-dot breach"; }
     if (title) title.innerText = "⚠️ Outside Certified Safe Zone";
-    if (desc) desc.innerText = `You are ${distFromCenter.toFixed(2)} km away from ${currentZone} safe center (Boundary: ${radiusKm} km).`;
+    if (desc) desc.innerText = `You are ${distFromCenter.toFixed(2)} km away from ${currentZone} safe boundary (Max: ${radiusKm} km).`;
 
-    // Trigger auto check-in prompt if 3 minutes have passed since last dismissal
     const now = Date.now();
-    if (now - lastGeofenceCheckinTime > 3 * 60 * 1000) {
+    if (now - lastGeofenceCheckinTime > 60 * 1000) {
       triggerGeofenceSafetyCheckin(myCoords.latitude, myCoords.longitude, currentZone);
     }
   } else {
     if (banner) banner.classList.remove("breach");
     if (dot) { dot.className = "geofence-indicator-dot safe"; }
     if (title) title.innerText = "✓ Inside Certified Safe Zone";
-    if (desc) desc.innerText = `Within ${currentZone} safe perimeter (${distFromCenter.toFixed(2)} km from center / ${radiusKm} km radius).`;
+    if (desc) desc.innerText = `Within ${currentZone} safe perimeter (${distFromCenter.toFixed(2)} km / ${radiusKm} km radius).`;
   }
 }
 
@@ -449,28 +461,23 @@ function renderTouristOverviewMap(myCoords, geofence) {
   touristOverviewMapInstance.invalidateSize();
 }
 
-async function triggerGeofenceSafetyCheckin(lat, lon, zoneCode) {
+// Opens the modal instantly and performs POI analysis in background
+function triggerGeofenceSafetyCheckin(lat, lon, zoneCode) {
   const modal = document.getElementById("safetyCheckinModal");
   const contextText = document.getElementById("checkinContextText");
   const countdownEl = document.getElementById("checkinCountdown");
   if (!modal || modal.style.display === "flex") return;
 
+  // 1. Open modal immediately
   modal.style.display = "flex";
   lastGeofenceCheckinTime = Date.now();
+  siren.playWarningBeep();
 
   if (contextText) {
-    contextText.innerText = "Analyzing nearby landmarks and destination area...";
+    contextText.innerHTML = `You have moved outside the certified <strong>${zoneCode}</strong> safe tourist perimeter.<br>Are you okay, or do you need emergency assistance?`;
   }
 
-  const poi = await fetchNearbyAIContext(lat, lon);
-  if (contextText) {
-    if (poi.found) {
-      contextText.innerHTML = `You have moved outside the <strong>${zoneCode}</strong> safe zone near <strong>${poi.name}</strong> (${poi.type}).<br>Are you chilling or do you need assistance?`;
-    } else {
-      contextText.innerHTML = `You have moved outside the certified <strong>${zoneCode}</strong> safe perimeter.<br>Please confirm you are safe.`;
-    }
-  }
-
+  // 2. Start 60s countdown immediately
   let secondsLeft = 60;
   if (countdownEl) countdownEl.innerText = `${secondsLeft}s`;
 
@@ -481,9 +488,16 @@ async function triggerGeofenceSafetyCheckin(lat, lon, zoneCode) {
 
     if (secondsLeft <= 0) {
       clearInterval(checkinCountdownInterval);
-      window.dismissSafetyCheckin(false);
+      window.dismissSafetyCheckin(false); // Auto-Escalate to LIVE SOS
     }
   }, 1000);
+
+  // 3. Asynchronously load landmark context without blocking
+  fetchNearbyAIContext(lat, lon).then(poi => {
+    if (poi.found && contextText) {
+      contextText.innerHTML = `You are outside the <strong>${zoneCode}</strong> safe zone near <strong>${poi.name}</strong> (${poi.type}).<br>Are you chilling or do you need assistance?`;
+    }
+  });
 }
 
 window.dismissSafetyCheckin = async function(isSafe) {
@@ -493,7 +507,7 @@ window.dismissSafetyCheckin = async function(isSafe) {
 
   if (isSafe) {
     lastGeofenceCheckinTime = Date.now();
-    alert("Safety confirmed. Have a great exploration!");
+    alert("Safety confirmed. Stay safe!");
   } else {
     if (!isEmergencyActive) {
       await window.handleSOSToggle();
@@ -796,19 +810,32 @@ window.loadSuperAdminMatrix = async function() {
   if (!tableBody) return;
 
   try {
-    const [zonesRes, profilesRes, sosRes, hqRes] = await Promise.all([
+    const [zonesRes, profilesRes, sosRes, locsRes, hqRes] = await Promise.all([
       supabase.from("destination_zones").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("sos_events").select("*").eq("status", "ACTIVE"),
+      supabase.from("locations").select("*").order("created_at", { ascending: false }),
       supabase.from("command_center_location").select("*")
     ]);
 
     const zones = zonesRes.data || [];
     const profiles = profilesRes.data || [];
     const activeSOSEvents = sosRes.data || [];
+    const locations = locsRes.data || [];
     const hqUnits = hqRes.data || [];
 
     const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
+
+    // Latest location mapping
+    const userLocationMap = {};
+    locations.forEach(loc => {
+      if (!userLocationMap[String(loc.user_id)]) {
+        userLocationMap[String(loc.user_id)] = {
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude)
+        };
+      }
+    });
 
     document.getElementById("saZonesCount").innerText = zones.length;
     document.getElementById("saStaffCount").innerText = hqUnits.length;
@@ -839,7 +866,8 @@ window.loadSuperAdminMatrix = async function() {
 
     tableBody.innerHTML = profiles.map(p => {
       const isCriticalSOS = activeSOSUserIds.has(String(p.id));
-      const coordsDisplay = (p.latitude && p.longitude) ? `${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}` : "Tracking...";
+      const loc = userLocationMap[String(p.id)] || { latitude: p.latitude, longitude: p.longitude };
+      const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : "Live GPS Active";
 
       let rowClass = isCriticalSOS ? "row-sos-red" : "row-normal";
       let statusTag = isCriticalSOS ? `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>` : `<span class="status-tag tag-green">Normal</span>`;
@@ -879,21 +907,33 @@ window.loadStaffMonitoringData = async function() {
   if (zoneHeader) zoneHeader.innerText = currentZone;
 
   try {
-    const [profilesRes, sosRes, missionsRes, cmdHQ] = await Promise.all([
+    const [profilesRes, sosRes, locsRes, missionsRes, cmdHQ] = await Promise.all([
       supabase.from("profiles").select("*").eq("zone_code", currentZone).order("created_at", { ascending: false }),
       supabase.from("sos_events").select("*").eq("zone_code", currentZone).eq("status", "ACTIVE"),
+      supabase.from("locations").select("*").order("created_at", { ascending: false }),
       supabase.from("rescue_missions").select("*").eq("zone_code", currentZone).eq("status", "EN_ROUTE"),
       getLiveCommandHQCoords(currentZone)
     ]);
 
     const profiles = profilesRes.data || [];
     const activeSOSEvents = sosRes.data || [];
+    const locations = locsRes.data || [];
     const activeMissions = missionsRes.data || [];
 
     const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
 
     const profileMap = {};
     profiles.forEach(p => { profileMap[String(p.id)] = p; });
+
+    const userLocationMap = {};
+    locations.forEach(loc => {
+      if (!userLocationMap[String(loc.user_id)]) {
+        userLocationMap[String(loc.user_id)] = {
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude)
+        };
+      }
+    });
 
     document.getElementById("mTotal").innerText = profiles.length;
     document.getElementById("mTourists").innerText = profiles.filter(p => p.is_tourist).length;
@@ -937,11 +977,12 @@ window.loadStaffMonitoringData = async function() {
     } else {
       tableBody.innerHTML = profiles.map(p => {
         const isCriticalSOS = activeSOSUserIds.has(String(p.id));
+        const loc = userLocationMap[String(p.id)] || { latitude: p.latitude, longitude: p.longitude };
         let isNearbyResponder = false;
 
-        if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0 && p.latitude && p.longitude) {
+        if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0 && loc.latitude && loc.longitude) {
           activeSOSEvents.forEach(sos => {
-            const dist = calculateDistanceKm(p.latitude, p.longitude, Number(sos.latitude), Number(sos.longitude));
+            const dist = calculateDistanceKm(loc.latitude, loc.longitude, Number(sos.latitude), Number(sos.longitude));
             if (dist <= 25.0) isNearbyResponder = true;
           });
         }
@@ -958,7 +999,7 @@ window.loadStaffMonitoringData = async function() {
         }
 
         const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-        const coordsDisplay = (p.latitude && p.longitude) ? `${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}` : `Tracking...`;
+        const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : `Live GPS Active`;
 
         return `
           <tr class="${rowClass}">
@@ -1023,7 +1064,7 @@ window.loadStaffMonitoringData = async function() {
         const missions = victimMissionsMap[vicId];
         const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
         const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
-        const vicLoc = { latitude: vic.latitude || cmdHQ.latitude, longitude: vic.longitude || cmdHQ.longitude };
+        const vicLoc = userLocationMap[vicId] || { latitude: vic.latitude || cmdHQ.latitude, longitude: vic.longitude || cmdHQ.longitude };
 
         let map = staffMapInstances[vicId];
         if (!map) {
@@ -1072,8 +1113,9 @@ window.loadStaffMonitoringData = async function() {
         let volMapsUrl = "#";
         if (volunteerMissions.length > 0) {
           const firstVol = volunteerMissions[0];
+          const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
+          const volPos = [volLoc.latitude, volLoc.longitude];
           const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer" };
-          const volPos = [volProfile.latitude || vicLoc.latitude, volProfile.longitude || vicLoc.longitude];
 
           if (!currentMarkers.volunteer) {
             currentMarkers.volunteer = L.marker(volPos, {
@@ -1083,10 +1125,10 @@ window.loadStaffMonitoringData = async function() {
             currentMarkers.volunteer.setLatLng(volPos);
           }
 
-          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volPos[0], volPos[1]);
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
           const routeInfo = calculateRouteAndETA(distKm);
           volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(distKm)} • ${routeInfo.etaText}`;
-          volMapsUrl = getGoogleMapsRouteUrl(volPos[0], volPos[1], vicLoc.latitude, vicLoc.longitude);
+          volMapsUrl = getGoogleMapsRouteUrl(volLoc.latitude, volLoc.longitude, vicLoc.latitude, vicLoc.longitude);
         } else if (currentMarkers.volunteer) {
           map.removeLayer(currentMarkers.volunteer);
           delete currentMarkers.volunteer;
@@ -1822,7 +1864,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. User Registration with Instant Coordinates Sync
+  // 5. User Registration
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
@@ -1968,8 +2010,8 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Polling loops
+  // Polling intervals
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
-  setInterval(checkTouristGeofenceBoundary, 10000); // Evaluates geofence boundary every 10 seconds
+  setInterval(checkTouristGeofenceBoundary, 10000);
 });
