@@ -1,4 +1,4 @@
- import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 // ==========================================
 // 1. SUPABASE INITIALIZATION
@@ -18,12 +18,11 @@ let compassInterval = null;
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 
-// Active device sensors
+// Hardware GPS State
 let verifiedGpsCoords = null;
-let verifiedGpsAccuracy = null;
 let gpsWatchId = null;
 
-// Persistent Leaflet maps & marker storage
+// Persistent Leaflet Maps & Markers
 let victimMapInstance = null;
 let victimMarkers = {};
 
@@ -34,94 +33,7 @@ let staffMapInstances = {};
 let staffMarkers = {};
 
 // ==========================================
-// 2. CLIENT-SIDE AES-GCM (256-BIT) E2EE ENGINE
-// ==========================================
-const E2EE_SALT = new TextEncoder().encode("TouristSafety_E2EE_Salt_2026");
-
-async function deriveEncryptionKey(passphrase) {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(passphrase),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  );
-  return await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt: E2EE_SALT,
-      iterations: 100000,
-      hash: "SHA-256"
-    },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
-}
-
-// Encrypt plaintext into base64 payload
-async function encryptField(plainText, keyPassphrase = "GLOBAL_PLATFORM_KEY_2026") {
-  if (!plainText) return plainText;
-  try {
-    const key = await deriveEncryptionKey(keyPassphrase);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(plainText);
-    const cipherBuffer = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, encoded);
-
-    const ivStr = btoa(String.fromCharCode(...iv));
-    const cipherStr = btoa(String.fromCharCode(...new Uint8Array(cipherBuffer)));
-    return `enc:${ivStr}:${cipherStr}`;
-  } catch (err) {
-    console.warn("E2EE Encrypt Notice:", err.message);
-    return plainText;
-  }
-}
-
-// Decrypt base64 payload into plaintext
-async function decryptField(cipherText, keyPassphrase = "GLOBAL_PLATFORM_KEY_2026") {
-  if (!cipherText || !cipherText.startsWith("enc:")) return cipherText;
-  try {
-    const parts = cipherText.split(":");
-    const iv = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
-    const cipherData = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
-    const key = await deriveEncryptionKey(keyPassphrase);
-
-    const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, cipherData);
-    return new TextDecoder().decode(decryptedBuffer);
-  } catch (err) {
-    return cipherText; // Return original if decryption key mismatch
-  }
-}
-
-// Decrypt full profile object
-async function decryptProfileObject(p) {
-  if (!p) return p;
-  const [phone, blood, ec1, ep1, ec2, ep2, address] = await Promise.all([
-    decryptField(p.phone),
-    decryptField(p.blood_group),
-    decryptField(p.emergency_contact_1),
-    decryptField(p.emergency_phone_1),
-    decryptField(p.emergency_contact_2),
-    decryptField(p.emergency_phone_2),
-    decryptField(p.home_address)
-  ]);
-
-  return {
-    ...p,
-    phone: phone || p.phone,
-    blood_group: blood || p.blood_group,
-    emergency_contact_1: ec1 || p.emergency_contact_1,
-    emergency_phone_1: ep1 || p.emergency_phone_1,
-    emergency_contact_2: ec2 || p.emergency_contact_2,
-    emergency_phone_2: ep2 || p.emergency_phone_2,
-    home_address: address || p.home_address
-  };
-}
-
-// ==========================================
-// 3. HARDWARE GPS ENGINE & AUTO-SYNC
+// 2. HARDWARE GPS ENGINE & TIMEOUT FALLBACK
 // ==========================================
 function startHardwareGpsWatcher() {
   if (!navigator.geolocation) return;
@@ -134,16 +46,13 @@ function startHardwareGpsWatcher() {
     async (pos) => {
       const lat = Number(pos.coords.latitude);
       const lon = Number(pos.coords.longitude);
-      const accuracy = Math.round(pos.coords.accuracy);
 
       verifiedGpsCoords = { latitude: lat, longitude: lon };
-      verifiedGpsAccuracy = accuracy;
 
       const userId = localStorage.getItem("touristSafetyUserId");
       const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
-      const staffZone = sessionStorage.getItem("staffZoneCode") || "GLOBAL";
+      const staffZone = sessionStorage.getItem("staffZoneCode");
 
-      // 1. Live update active user position
       if (userId) {
         await supabase.from("locations").insert({
           user_id: userId,
@@ -152,8 +61,7 @@ function startHardwareGpsWatcher() {
         });
       }
 
-      // 2. Live update Command HQ position for this specific zone
-      if (isStaffActive) {
+      if (isStaffActive && staffZone) {
         await supabase.from("command_center_location").upsert({
           id: `HQ_${staffZone}`,
           zone_code: staffZone,
@@ -164,46 +72,56 @@ function startHardwareGpsWatcher() {
       }
     },
     (err) => {
-      console.warn(`Waiting for hardware GPS fix: ${err.message}`);
-      setTimeout(startHardwareGpsWatcher, 3000);
+      console.warn(`GPS hardware watch update: ${err.message}`);
     },
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
-    }
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
   );
 }
 
 startHardwareGpsWatcher();
 
-async function getAccurateHardwareGps() {
+// Non-blocking GPS resolver: returns hardware fix or immediate fallback in under 3s
+async function getQuickHardwareGps() {
   if (verifiedGpsCoords) return verifiedGpsCoords;
 
   return new Promise((resolve) => {
-    const checkInterval = setInterval(() => {
-      if (verifiedGpsCoords) {
-        clearInterval(checkInterval);
-        resolve(verifiedGpsCoords);
+    let resolved = false;
+
+    // 3-second safety timer so the form never hangs
+    const safetyTimeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve({ latitude: 18.9894, longitude: 73.1175 });
       }
-    }, 500);
+    }, 3000);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        clearInterval(checkInterval);
-        verifiedGpsCoords = {
-          latitude: Number(pos.coords.latitude),
-          longitude: Number(pos.coords.longitude)
-        };
-        resolve(verifiedGpsCoords);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(safetyTimeout);
+          verifiedGpsCoords = {
+            latitude: Number(pos.coords.latitude),
+            longitude: Number(pos.coords.longitude)
+          };
+          resolve(verifiedGpsCoords);
+        }
       },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(safetyTimeout);
+          resolve({ latitude: 18.9894, longitude: 73.1175 });
+        }
+      },
+      { enableHighAccuracy: true, timeout: 2800, maximumAge: 5000 }
     );
   });
 }
 
-async function getLiveCommandHQCoords(zoneCode = "GLOBAL") {
+async function getLiveCommandHQCoords(zoneCode) {
+  if (!zoneCode) return await getQuickHardwareGps();
+
   const { data } = await supabase
     .from("command_center_location")
     .select("latitude, longitude")
@@ -213,11 +131,11 @@ async function getLiveCommandHQCoords(zoneCode = "GLOBAL") {
   if (data && data.latitude && data.longitude) {
     return { latitude: Number(data.latitude), longitude: Number(data.longitude) };
   }
-  return await getAccurateHardwareGps();
+  return await getQuickHardwareGps();
 }
 
 // ==========================================
-// 4. SYNTHESIZED EMERGENCY SIREN
+// 3. SYNTHESIZED EMERGENCY SIREN
 // ==========================================
 class SirenSynthesizer {
   constructor() {
@@ -278,7 +196,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 5. DISTANCE, BEARING & MAP UTILITIES
+// 4. DISTANCE, BEARING & MAP UTILITIES
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
@@ -343,7 +261,7 @@ function createLeafletCustomPin(type, title) {
 }
 
 // ==========================================
-// 6. PORTAL VIEW CONTROLLER
+// 5. PORTAL VIEW CONTROLLER
 // ==========================================
 window.switchPortal = function(portalId) {
   ['portalGateway', 'userPortal', 'staffPortal', 'superAdminPortal'].forEach(id => {
@@ -456,10 +374,10 @@ window.openRegistration = function(role) {
   if (reg) reg.style.display = "block";
 
   if (role === "tourist") {
-    if (title) title.innerText = "Tourist Registration (E2EE Protected)";
+    if (title) title.innerText = "Tourist Registration";
     if (extraText) extraText.innerText = "Yes, I also want to register as a volunteer responder.";
   } else {
-    if (title) title.innerText = "Volunteer Registration (E2EE Protected)";
+    if (title) title.innerText = "Volunteer Registration";
     if (extraText) extraText.innerText = "Yes, I also want to register as a protected tourist.";
   }
 };
@@ -483,7 +401,7 @@ window.exitSuperAdminPortal = function() {
 };
 
 // ==========================================
-// 7. WEBSITE HEAD / SUPER ADMIN MASTER MATRIX
+// 6. WEBSITE HEAD / SUPER ADMIN MASTER MATRIX
 // ==========================================
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
@@ -523,7 +441,6 @@ window.loadSuperAdminMatrix = async function() {
     document.getElementById("saSOSCount").innerText = activeSOSUserIds.size;
     document.getElementById("saZoneListBadge").innerText = `${zones.length} Destination Zones Active`;
 
-    // Render Destination Zone Overview Cards
     if (zonesCardsEl) {
       zonesCardsEl.innerHTML = zones.map(z => `
         <div class="zone-summary-card">
@@ -536,15 +453,12 @@ window.loadSuperAdminMatrix = async function() {
       `).join("");
     }
 
-    // Decrypt all profiles for Master Overview
-    const decryptedProfiles = await Promise.all(profiles.map(p => decryptProfileObject(p)));
-
-    if (decryptedProfiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered in the system yet.</td></tr>`;
+    if (profiles.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
       return;
     }
 
-    tableBody.innerHTML = decryptedProfiles.map(p => {
+    tableBody.innerHTML = profiles.map(p => {
       const isCriticalSOS = activeSOSUserIds.has(String(p.id));
       const myLoc = userLocationMap[String(p.id)];
 
@@ -574,13 +488,15 @@ window.loadSuperAdminMatrix = async function() {
 };
 
 // ==========================================
-// 8. STAFF COMMAND MATRIX (ZONE FILTERED & E2EE)
+// 7. STAFF COMMAND MATRIX (STRICT ZONE ISOLATION)
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
   if (!tableBody) return;
 
-  const currentZone = sessionStorage.getItem("staffZoneCode") || "GLOBAL";
+  const currentZone = sessionStorage.getItem("staffZoneCode");
+  if (!currentZone) return;
+
   const zoneHeader = document.getElementById("staffZoneDisplayHeader");
   if (zoneHeader) zoneHeader.innerText = currentZone;
 
@@ -593,13 +509,11 @@ window.loadStaffMonitoringData = async function() {
       getLiveCommandHQCoords(currentZone)
     ]);
 
-    const rawProfiles = profilesRes.data || [];
+    const profiles = profilesRes.data || [];
     const activeSOSEvents = sosRes.data || [];
     const locations = locsRes.data || [];
     const activeMissions = missionsRes.data || [];
 
-    // Decrypt profiles for this authorized zone
-    const profiles = await Promise.all(rawProfiles.map(p => decryptProfileObject(p)));
     const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
 
     const profileMap = {};
@@ -620,7 +534,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dynamic SOS Dispatch Queue
+    // 1. Dispatch Queue strictly for this zone
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -683,7 +597,7 @@ window.loadStaffMonitoringData = async function() {
         const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
         const coordsDisplay = myLoc 
           ? `${Number(myLoc.latitude).toFixed(4)}, ${Number(myLoc.longitude).toFixed(4)}` 
-          : `🛰️ Acquiring GPS...`;
+          : `GPS Syncing...`;
 
         return `
           <tr class="${rowClass}">
@@ -886,14 +800,11 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 9. PURGE & DELETE ZONE COMMAND CENTER
+// 8. PURGE & DELETE ZONE COMMAND CENTER
 // ==========================================
 window.handleDeleteCommandCenter = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
-  if (!currentZone) {
-    alert("No active command center session.");
-    return;
-  }
+  if (!currentZone) return;
 
   const confirmCode = prompt(`DANGER: This will permanently delete destination zone '${currentZone}' and purge all associated tourists, volunteers, and SOS alerts.\n\nEnter the Admin Passcode for '${currentZone}' to confirm:`);
   if (!confirmCode) return;
@@ -929,7 +840,7 @@ window.handleDeleteCommandCenter = async function() {
 };
 
 // ==========================================
-// 10. VOLUNTEER DISPATCH (ZONE ISOLATED)
+// 9. VOLUNTEER DISPATCH (ZONE ISOLATED)
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1070,7 +981,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
   const [targetMissionsRes, cmdHQ, myCoords] = await Promise.all([
     supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
     getLiveCommandHQCoords(zoneCode),
-    getAccurateHardwareGps()
+    getQuickHardwareGps()
   ]);
 
   const hasCommandAssistance = targetMissionsRes.data && targetMissionsRes.data.some(m => m.responder_type === 'COMMAND_CENTER');
@@ -1130,7 +1041,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 11. VICTIM SCREEN: DUAL GOOGLE MAPS NAVIGATION & CONTACTS
+// 10. VICTIM SCREEN: DUAL MAPS & CONTACTS
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1151,7 +1062,7 @@ async function checkVictimAidStatus() {
     supabase.from("locations").select("latitude, longitude").eq("user_id", userId).order("created_at", { ascending: false }).maybeSingle(),
     supabase.from("rescue_missions").select("*").eq("target_user_id", String(userId)).eq("status", "EN_ROUTE"),
     getLiveCommandHQCoords(myZone),
-    getAccurateHardwareGps()
+    getQuickHardwareGps()
   ]);
 
   const myLoc = myLocRes.data;
@@ -1215,11 +1126,8 @@ async function checkVictimAidStatus() {
         supabase.from("locations").select("user_id, latitude, longitude").in("user_id", volIds).order("created_at", { ascending: false })
       ]);
 
-      const rawVolProfiles = volProfilesRes.data || [];
+      const volProfiles = volProfilesRes.data || [];
       const volLocs = volLocsRes.data || [];
-
-      // Decrypt volunteer phone numbers
-      const volProfiles = await Promise.all(rawVolProfiles.map(p => decryptProfileObject(p)));
 
       volProfiles.forEach(vp => {
         const foundLoc = volLocs.find(l => String(l.user_id) === String(vp.id));
@@ -1275,7 +1183,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 12. SOS BROADCAST & STATE TRANSITION
+// 11. SOS BROADCAST & STATE TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1310,7 +1218,7 @@ window.handleSOSToggle = async function() {
       supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
     ]);
 
-    const coords = await getAccurateHardwareGps();
+    const coords = await getQuickHardwareGps();
 
     await supabase.from("sos_events").insert({
       user_id: userId,
@@ -1347,7 +1255,7 @@ function triggerVisualAlarm(activate) {
 }
 
 // ==========================================
-// 13. INDIVIDUAL USER ZONE EXIT & PURGE
+// 12. INDIVIDUAL USER ZONE EXIT & PURGE
 // ==========================================
 window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1382,7 +1290,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 14. BACKGROUND THEME ENGINE & LISTENERS
+// 13. BACKGROUND THEME ENGINE & LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -1448,7 +1356,7 @@ window.addEventListener("DOMContentLoaded", () => {
     nextPlane = temp;
   }, 13000);
 
-  // 1. Staff Authentication with Dynamic Zone Lookup
+  // 1. Staff Authentication with Zone Verification
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
     staffAuthForm.addEventListener("submit", async (e) => {
@@ -1471,7 +1379,7 @@ window.addEventListener("DOMContentLoaded", () => {
         sessionStorage.setItem("staffAuthenticated", "true");
         sessionStorage.setItem("staffZoneCode", enteredZone);
 
-        const currentGps = await getAccurateHardwareGps();
+        const currentGps = await getQuickHardwareGps();
         await supabase.from("command_center_location").upsert({
           id: `HQ_${enteredZone}`,
           zone_code: enteredZone,
@@ -1539,18 +1447,11 @@ window.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       const phoneInput = document.getElementById("signInPhoneInput").value.trim();
 
-      const { data: rawProfiles } = await supabase.from("profiles").select("*");
-      let matchedProfile = null;
-
-      if (rawProfiles) {
-        for (const p of rawProfiles) {
-          const decryptedPhone = await decryptField(p.phone);
-          if (decryptedPhone === phoneInput || p.phone === phoneInput) {
-            matchedProfile = p;
-            break;
-          }
-        }
-      }
+      const { data: matchedProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("phone", phoneInput)
+        .maybeSingle();
 
       if (!matchedProfile) {
         alert("No profile found with that phone number. Please register first.");
@@ -1566,50 +1467,39 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. Encrypted Registration Form
+  // 5. Fast User Registration
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const submitBtn = regForm.querySelector(".submit-btn");
+      const submitBtn = document.getElementById("regSubmitBtn");
       submitBtn.disabled = true;
-      submitBtn.innerText = "Encrypting Data (AES-256)...";
+      submitBtn.innerText = "Registering...";
 
       const destinationZone = document.getElementById("regZoneCode").value.trim().toUpperCase();
       const wantsSecondRole = document.getElementById("additionalRole")?.checked || false;
       const isTourist = selectedRole === "tourist" || wantsSecondRole;
       const isVolunteer = selectedRole === "volunteer" || wantsSecondRole;
 
-      // Encrypt sensitive fields with client-side Web Crypto AES-GCM
-      const [encPhone, encBlood, encEc1, encEp1, encEc2, encEp2, encAddress] = await Promise.all([
-        encryptField(document.getElementById("phone").value.trim()),
-        encryptField(document.getElementById("bloodGroup").value),
-        encryptField(document.getElementById("emergency1").value.trim()),
-        encryptField(document.getElementById("emergencyPhone1").value.trim()),
-        encryptField(document.getElementById("emergency2")?.value.trim() || null),
-        encryptField(document.getElementById("emergencyPhone2")?.value.trim() || null),
-        encryptField(document.getElementById("homeAddress").value.trim())
-      ]);
-
       const payload = {
         zone_code: destinationZone,
         name: document.getElementById("name").value.trim(),
         age: parseInt(document.getElementById("age").value, 10),
         gender: document.getElementById("gender").value,
-        blood_group: encBlood,
-        phone: encPhone,
-        emergency_contact_1: encEc1,
-        emergency_phone_1: encEp1,
-        emergency_contact_2: encEc2,
-        emergency_phone_2: encEp2,
-        home_address: encAddress,
+        blood_group: document.getElementById("bloodGroup").value,
+        phone: document.getElementById("phone").value.trim(),
+        emergency_contact_1: document.getElementById("emergency1").value.trim(),
+        emergency_phone_1: document.getElementById("emergencyPhone1").value.trim(),
+        emergency_contact_2: document.getElementById("emergency2")?.value.trim() || null,
+        emergency_phone_2: document.getElementById("emergencyPhone2")?.value.trim() || null,
+        home_address: document.getElementById("homeAddress").value.trim(),
         is_tourist: isTourist,
         is_volunteer: isVolunteer
       };
 
       try {
-        const coords = await getAccurateHardwareGps();
+        const coords = await getQuickHardwareGps();
 
         const { data, error } = await supabase
           .from("profiles")
@@ -1632,7 +1522,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const roles = [isTourist && "Tourist", isVolunteer && "Volunteer"].filter(Boolean).join(" and ");
         const successMsg = document.getElementById("successMessage");
-        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'. Private fields are AES-256 encrypted.`;
+        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'.`;
 
         regForm.reset();
         updateUserStateView();
@@ -1640,7 +1530,7 @@ window.addEventListener("DOMContentLoaded", () => {
         alert(`Registration error: ${err.message}`);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.innerText = "Complete Encrypted Registration";
+        submitBtn.innerText = "Complete Registration";
       }
     });
   }
