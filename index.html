@@ -133,7 +133,10 @@
               <small>ACTIVE DESTINATION ZONE: <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span></small>
               <div><strong><span id="activeUserName">--</span></strong> (<span id="activeUserRole">--</span>)</div>
             </div>
-            <button class="switch-user-btn" onclick="signOutCurrentUser()">Switch / Log Out</button>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="switch-user-btn" style="background: rgba(56, 189, 248, 0.25); border-color: #38bdf8;" onclick="openEditOwnProfileModal()">✏️ Edit Profile</button>
+              <button class="switch-user-btn" onclick="signOutCurrentUser()">Log Out</button>
+            </div>
           </div>
 
           <!-- Victim Live Map Box -->
@@ -249,7 +252,7 @@
           <span class="legend-item"><span class="legend-badge green-badge"></span> NORMAL: Secure</span>
         </div>
 
-        <!-- Full-Width Live Table -->
+        <!-- Full-Width Live Table with Edit Actions -->
         <div class="table-wrapper">
           <table class="staff-table">
             <thead>
@@ -262,10 +265,11 @@
                 <th>Emergency Contact</th>
                 <th>Home / Stay Address</th>
                 <th>Coordinates (Lat, Long)</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="staffTableBody">
-              <tr><td colspan="8" style="text-align: center; opacity: 0.6;">Loading destination feed...</td></tr>
+              <tr><td colspan="9" style="text-align: center; opacity: 0.6;">Loading destination feed...</td></tr>
             </tbody>
           </table>
         </div>
@@ -315,7 +319,7 @@
           <div id="saZonesCardsContainer" class="zones-cards-grid"></div>
         </div>
 
-        <!-- Master Global Roster Table -->
+        <!-- Master Global Roster Table with Edit Actions -->
         <div class="table-wrapper" style="margin-top: 20px;">
           <table class="staff-table">
             <thead>
@@ -329,10 +333,11 @@
                 <th>Emergency Contact</th>
                 <th>Address</th>
                 <th>Coordinates</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="superAdminTableBody">
-              <tr><td colspan="9" style="text-align: center; opacity: 0.6;">Loading global master telemetry...</td></tr>
+              <tr><td colspan="10" style="text-align: center; opacity: 0.6;">Loading global master telemetry...</td></tr>
             </tbody>
           </table>
         </div>
@@ -537,10 +542,98 @@
         </form>
       </section>
 
-      <!-- 6. SUCCESS MESSAGE -->
+      <!-- 6. EDIT PROFILE MODAL (USER & ADMIN EDITABLE) -->
+      <section id="editProfileModal" class="glass-modal" style="display: none;">
+        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
+        <h2 id="editProfileTitle">Edit Profile Record</h2>
+        <p class="form-subtitle">Update registration details, contacts, or destination zone assignment.</p>
+
+        <form id="editProfileForm">
+          <input type="hidden" id="editProfileId">
+          
+          <div class="form-grid">
+            <div class="form-group full-width" style="background: rgba(56, 189, 248, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.4);">
+              <label for="editZoneCode" style="color: #38bdf8; font-weight: 700;">Destination / Zone Code</label>
+              <input type="text" id="editZoneCode" required placeholder="e.g. ZONE-A" style="text-transform: uppercase; font-weight: 700; color: #fff;">
+            </div>
+
+            <div class="form-group full-width">
+              <label for="editName">Full Name</label>
+              <input type="text" id="editName" required placeholder="John Doe">
+            </div>
+
+            <div class="form-group">
+              <label for="editAge">Age</label>
+              <input type="number" id="editAge" min="1" max="120" required>
+            </div>
+
+            <div class="form-group">
+              <label for="editGender">Gender</label>
+              <select id="editGender" required>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editBloodGroup">Blood Group</label>
+              <select id="editBloodGroup" required>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editPhone">Phone Number</label>
+              <input type="tel" id="editPhone" required placeholder="+91 9876543210">
+            </div>
+
+            <div class="form-group">
+              <label for="editEmergency1">Primary Emergency Contact</label>
+              <input type="text" id="editEmergency1" required placeholder="Contact Name">
+            </div>
+
+            <div class="form-group">
+              <label for="editEmergencyPhone1">Primary Emergency Phone</label>
+              <input type="tel" id="editEmergencyPhone1" required placeholder="+91 9876543211">
+            </div>
+
+            <div class="form-group">
+              <label for="editEmergency2">Secondary Contact</label>
+              <input type="text" id="editEmergency2" placeholder="Contact Name">
+            </div>
+
+            <div class="form-group">
+              <label for="editEmergencyPhone2">Secondary Phone</label>
+              <input type="tel" id="editEmergencyPhone2" placeholder="+91 9876543212">
+            </div>
+
+            <div class="form-group full-width">
+              <label for="editHomeAddress">Address / Local Stay</label>
+              <textarea id="editHomeAddress" rows="2" required placeholder="Hotel or stay details"></textarea>
+            </div>
+
+            <div class="form-group full-width checkbox-group" style="display: flex; gap: 20px;">
+              <label><input type="checkbox" id="editIsTourist"> Registered as Tourist</label>
+              <label><input type="checkbox" id="editIsVolunteer"> Registered as Volunteer</label>
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn" id="editSubmitBtn" style="background: #38bdf8; color: #022c0e; font-weight: 700;">💾 Save Changes</button>
+        </form>
+      </section>
+
+      <!-- 7. SUCCESS MESSAGE -->
       <section id="successPage" class="glass-modal status-card" style="display: none;">
         <div class="success-icon">✓</div>
-        <h2>Registration Complete</h2>
+        <h2>Profile Updated</h2>
         <p id="successMessage">Your details are safely synced.</p>
         <button class="submit-btn" onclick="closeModal()">Return to Dashboard</button>
       </section>
