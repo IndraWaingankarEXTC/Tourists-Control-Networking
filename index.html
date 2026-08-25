@@ -359,36 +359,36 @@
       </section>
     </main>
 
-    <!-- VOLUNTEER RAPID DISPATCH HUD -->
     <div id="volunteerHudWidget" class="volunteer-hud" style="display: none;">
-      <div id="hudDispatchPrompt">
-        <div class="hud-header">
-          <span class="hud-pulse"></span>
-          <strong>EMERGENCY DISPATCH</strong>
-        </div>
-        <p id="hudPromptText">A person in your destination zone has triggered an active SOS! Can you assist?</p>
-        <div class="hud-actions">
-          <button class="hud-btn hud-yes-btn" onclick="acceptRescueMission()">✓ YES, ASSIST</button>
-          <button class="hud-btn hud-no-btn" onclick="declineRescueMission()">✕ NO</button>
-        </div>
-      </div>
-
-      <div id="hudCompassView" style="display: none;">
-        <div class="hud-header">
-          <strong>ZONE LIVE TRACKER</strong>
-          <button class="hud-close-btn" onclick="closeCompassView()">✕</button>
-        </div>
-        
-        <div id="volunteerLiveMap" class="whatsapp-live-map-window" style="height: 200px; margin: 8px 0;"></div>
-        
-        <div class="compass-telemetry">
-          <div>Distance: <strong id="compassDistance">--</strong></div>
-          <div>Bearing: <strong id="compassBearing">0°</strong></div>
-        </div>
-      </div>
+  <div id="hudDispatchPrompt">
+    <div class="hud-header">
+      <span class="hud-pulse"></span>
+      <strong>EMERGENCY DISPATCH</strong>
     </div>
+    <p id="hudPromptText">A person in your destination zone has triggered an active SOS! Can you assist?</p>
+    <div class="hud-actions">
+      <button class="hud-btn hud-yes-btn" onclick="acceptRescueMission()">✓ YES, ASSIST</button>
+      <button class="hud-btn hud-no-btn" onclick="declineRescueMission()">✕ NO</button>
+    </div>
+  </div>
 
-    <!-- 60-SECOND AUTO-SOS GEOFENCE SAFETY CHECK-IN -->
+  <div id="hudCompassView" style="display: none;">
+    <div class="hud-header">
+      <strong>ZONE LIVE TRACKER</strong>
+      <button class="hud-close-btn" onclick="closeCompassView()">✕</button>
+    </div>
+    
+    <div id="volunteerLiveMap" class="whatsapp-live-map-window" style="height: 180px; margin: 8px 0;"></div>
+    
+    <!-- Direct Action Links for Volunteer -->
+    <div id="volunteerActionControls" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;"></div>
+
+    <div class="compass-telemetry">
+      <div>Distance: <strong id="compassDistance">--</strong></div>
+      <div>Bearing: <strong id="compassBearing">0°</strong></div>
+    </div>
+  </div>
+</div>    <!-- 60-SECOND AUTO-SOS GEOFENCE SAFETY CHECK-IN -->
     <div id="safetyCheckinModal" class="modal-overlay" style="display: none; z-index: 2000;">
       <div class="glass-modal" style="max-width: 440px; text-align: center; border-color: #ffd000; box-shadow: 0 0 40px rgba(255, 208, 0, 0.4);">
         <div style="font-size: 40px; margin-bottom: 6px;">⚠️</div>
@@ -451,28 +451,32 @@
         </form>
       </section>
 
-      <!-- 3. CREATE NEW DESTINATION ZONE -->
-      <section id="createZoneModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
-        <button class="back-btn" onclick="openStaffModal()">← Back to Login</button>
-        <h2>Create Destination Zone</h2>
-        <p class="form-subtitle">Set up a customized command center and safety grid.</p>
-        
-        <form id="createZoneForm">
-          <div class="form-group">
-            <label for="newZoneCode">Unique Destination Code</label>
-            <input type="text" id="newZoneCode" required placeholder="e.g. MOUNT-PARK, BEACH-RESORT" style="text-transform: uppercase;">
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label for="newZoneName">Destination Name / Region</label>
-            <input type="text" id="newZoneName" required placeholder="e.g. Mountain Park Safety Grid">
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label for="newZonePasscode">Admin Master Passcode</label>
-            <input type="password" id="newZonePasscode" required placeholder="Set secure passcode">
-          </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #22c55e; color: #022c0e;">Create Command Center</button>
-        </form>
-      </section>
+     <!-- REPLACE MODAL #3 (CREATE ZONE FORM) IN index.html -->
+<section id="createZoneModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
+  <button class="back-btn" onclick="openStaffModal()">← Back to Login</button>
+  <h2>Create Destination Zone</h2>
+  <p class="form-subtitle">Set up a customized command center and safety grid.</p>
+  
+  <form id="createZoneForm">
+    <div class="form-group">
+      <label for="newZoneCode">Unique Destination Code</label>
+      <input type="text" id="newZoneCode" required placeholder="e.g. MOUNT-PARK, BEACH-RESORT" style="text-transform: uppercase;">
+    </div>
+    <div class="form-group" style="margin-top: 10px;">
+      <label for="newZoneName">Destination Name / Region</label>
+      <input type="text" id="newZoneName" required placeholder="e.g. Mountain Park Safety Grid">
+    </div>
+    <div class="form-group" style="margin-top: 10px;">
+      <label for="newZonePhone">Command Center Helpline Phone</label>
+      <input type="tel" id="newZonePhone" required placeholder="+91 9876543210">
+    </div>
+    <div class="form-group" style="margin-top: 10px;">
+      <label for="newZonePasscode">Admin Master Passcode</label>
+      <input type="password" id="newZonePasscode" required placeholder="Set secure passcode">
+    </div>
+    <button type="submit" class="submit-btn" style="margin-top: 15px; background: #22c55e; color: #022c0e;">Create Command Center</button>
+  </form>
+</section>
 
       <!-- 4. USER SIGN IN -->
       <section id="userSignInModal" class="glass-modal auth-modal" style="display: none;">
