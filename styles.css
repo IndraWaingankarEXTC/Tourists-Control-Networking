@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Gurmukhi:wght@400;600;700&family=Noto+Sans+Gujarati:wght@400;600;700&family=Noto+Sans+Bengali:wght@400;600;700&family=Noto+Sans+Oriya:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Noto+Sans+Malayalam:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
 
 * {
   box-sizing: border-box;
@@ -14,13 +14,18 @@
 }
 
 body {
-  font-family: "Inter", sans-serif;
+  font-family: "Inter", "Noto Sans Devanagari", "Noto Sans Gurmukhi", "Noto Sans Gujarati", "Noto Sans Bengali", "Noto Sans Oriya", "Noto Sans Tamil", "Noto Sans Telugu", "Noto Sans Malayalam", "Noto Nastaliq Urdu", sans-serif;
   margin: 0;
   padding: 0;
   min-height: 100vh;
   color: #ffffff;
   background-color: #030a05;
   overflow-x: hidden;
+}
+
+body[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
 }
 
 .bg-plane {
