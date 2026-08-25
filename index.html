@@ -1,391 +1,679 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tourist Safety Command Network</title>
+<div class="app">
 
-  <!-- Leaflet Assets -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <aside class="sidebar">
 
-  <link rel="stylesheet" href="styles.css">
-  <script type="module" src="script.js" defer></script>
-</head>
-<body>
-  <div class="bg-plane active" id="bgPlaneA"></div>
+    <div class="logo">
+      SafeTour
+    </div>
 
-  <div class="website">
-    <nav class="navbar">
-      <div class="brand" onclick="switchPortal('portalGateway')">
-        <div class="brand-icon">TS</div>
-        <div><strong>Tourist Safety</strong><span id="activeNavbarZone">SECURE NETWORK</span></div>
-      </div>
-      <div class="nav-links">
-        <select id="langSelect" class="lang-selector" onchange="setLanguage(this.value)">
-          <option value="en">English (Default)</option>
-          <option value="hi">Hindi (हिन्दी)</option>
-          <option value="mr">Marathi (मराठी)</option>
-          <option value="gu">Gujarati (ગુજરાતી)</option>
-          <option value="bn">Bengali (বাংলা)</option>
-          <option value="ta">Tamil (தமிழ்)</option>
-          <option value="te">Telugu (తెలుగు)</option>
-          <option value="kn">Kannada (ಕನ್ನಡ)</option>
-          <option value="ml">Malayalam (മലയാളം)</option>
-          <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
-          <option value="ur">Urdu (اُردُو)</option>
-        </select>
-        <a href="#" onclick="switchPortal('portalGateway'); return false;">Switch Portal</a>
-      </div>
-    </nav>
+    <button class="nav active" id="navDashboard">
+      Dashboard
+    </button>
 
-    <!-- VIEW 0: GATEWAY -->
-    <main id="portalGateway" class="page-view">
-      <section class="hero">
-        <div class="hero-content">
-          <div class="heritage-mark" data-i18n="eyebrow">MULTI-DESTINATION DISPATCH &amp; ID GRID</div>
-          <h1 data-i18n="heroTitle1">Access Control<br><span data-i18n="heroTitle2">System</span></h1>
-          <p data-i18n="heroSub">Select your authorization tier to access live telemetry and safety ID cards.</p>
-        </div>
-        <div class="action-container action-container-3card">
-          <button class="glass-card" onclick="enterUserMode()">
-            <div class="card-icon">U</div>
-            <div class="card-content">
-              <small data-i18n="publicEntry">PUBLIC ENTRY</small>
-              <h2 data-i18n="userPortal">User Portal</h2>
-              <p data-i18n="userPortalDesc">Register as a tourist or volunteer, generate digital safety ID card.</p>
-            </div>
-          </button>
-          <button class="glass-card staff-card" onclick="openModal('staffPasscodeModal')">
-            <div class="card-icon staff-icon">⚡</div>
-            <div class="card-content">
-              <small data-i18n="zoneAuthority">ZONE AUTHORITY</small>
-              <h2 data-i18n="staffCommand">Staff Command</h2>
-              <p data-i18n="staffCommandDesc">Monitor real-time alerts, configure desk phone, and broadcast WhatsApp dispatches.</p>
-            </div>
-          </button>
-          <button class="glass-card superadmin-card" onclick="openModal('superAdminAuthModal')">
-            <div class="card-icon superadmin-icon">👑</div>
-            <div class="card-content">
-              <small data-i18n="headOfPlatform">HEAD OF PLATFORM</small>
-              <h2 data-i18n="masterControl">Master Control</h2>
-              <p data-i18n="masterControlDesc">Global oversight across all active tourist destinations.</p>
-            </div>
-          </button>
-        </div>
-      </section>
-    </main>
+    <button class="nav" id="navTourists">
+      Tourists
+    </button>
 
-    <!-- VIEW 1: USER DASHBOARD -->
-    <main id="userPortal" class="page-view" style="display: none;">
-      <section class="hero">
-        <div class="hero-content">
-          <div class="heritage-mark">NATURE • HERITAGE • SAFETY</div>
-          <h1>Tourist Safety<br><span>Dashboard</span></h1>
-        </div>
+    <button class="nav" id="navVolunteers">
+      Volunteers
+    </button>
 
-        <div id="loggedOutSection" class="user-state-container">
-          <div class="action-container action-container-3card">
-            <button class="glass-card" onclick="openRegistration('tourist')">
-              <div class="card-icon">T</div>
-              <div class="card-content">
-                <small>PROTECTION</small>
-                <h2>Register Tourist</h2>
-                <p>Create safety profile &amp; generate safety QR ID card.</p>
-              </div>
-            </button>
-            <button class="glass-card" onclick="openRegistration('volunteer')">
-              <div class="card-icon">V</div>
-              <div class="card-content">
-                <small>COMMUNITY</small>
-                <h2>Register Volunteer</h2>
-                <p>Join response network to protect nearby tourists.</p>
-              </div>
-            </button>
-            <button class="glass-card signin-card" onclick="openModal('userSignInModal')">
-              <div class="card-icon signin-icon">🔑</div>
-              <div class="card-content">
-                <small>EXISTING USER</small>
-                <h2>Sign In</h2>
-                <p>Restore session and view digital ID pass.</p>
-              </div>
-            </button>
-          </div>
-        </div>
+    <button class="nav" id="navAlerts">
+      Emergency Alerts
+    </button>
 
-        <div id="loggedInSection" class="user-state-container" style="display: none; width: 100%; max-width: 680px;">
-          <div class="session-badge">
-            <div>
-              <small>DESTINATION: <strong id="activeUserZoneBadge" style="color:#ffd000;">--</strong></small>
-              <div><strong id="activeUserName">--</strong> (<span id="activeUserRole">--</span>)</div>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <button class="switch-user-btn" style="background: rgba(56, 189, 248, 0.25);" onclick="openModal('idCardModal')">🪪 View ID Card</button>
-              <button class="switch-user-btn" onclick="signOut()">Log Out</button>
-            </div>
-          </div>
+    <button class="nav" id="navProfile">
+      My Profile
+    </button>
 
-          <!-- Geofence Status -->
-          <div id="geofenceBanner" class="geofence-status-banner">
-            <span class="geofence-indicator-dot safe" id="geofenceDot"></span>
-            <div style="text-align: left;">
-              <strong id="geofenceTitle">Inside Safe Zone</strong>
-              <small id="geofenceDesc" style="display: block;">Monitored by local destination command center.</small>
-            </div>
-          </div>
+  </aside>
 
-          <div id="touristMap" class="whatsapp-live-map-window" style="height: 220px;"></div>
 
-          <!-- WhatsApp Dispatch Quick Links -->
-          <div id="whatsappDispatchPanel" class="victim-aid-status-box" style="display: none;">
-            <strong>🚨 Automated WhatsApp Broadcast Logs</strong>
-            <p style="font-size: 11px; margin-bottom: 8px;">Send live telemetry link to emergency contacts &amp; police desk:</p>
-            <div id="whatsappLinksContainer" style="display: flex; flex-direction: column; gap: 6px;"></div>
-          </div>
+  <main class="main">
 
-          <!-- SOS Trigger -->
-          <div class="sos-wrapper">
-            <button id="sosBtn" class="sos-button" onclick="promptSOSVerification(false)">
-              <div class="sos-symbol">!</div>
-              <div class="sos-text">
-                <small>EMERGENCY ASSISTANCE</small>
-                <strong id="sosLabel">SEND LIVE SOS</strong>
-              </div>
-              <div class="sos-arrow">→</div>
-            </button>
-          </div>
-        </div>
-      </section>
-    </main>
+    <header>
 
-    <!-- VIEW 2: STAFF DASHBOARD -->
-    <main id="staffPortal" class="page-view" style="display: none;">
-      <section class="staff-dashboard">
-        <div class="staff-header">
-          <div>
-            <h2>Zone Command: <span id="staffZoneDisplayHeader" style="color: #ffd000;">--</span></h2>
-            <p>HQ Contact: <span id="staffPhoneDisplayHeader" style="color: #38bdf8; font-weight: 700;">--</span></p>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button class="refresh-btn" onclick="loadStaffData()">↻ Refresh</button>
-            <button class="switch-user-btn" onclick="exitStaff()">Log Out HQ</button>
-          </div>
-        </div>
+      <div>
+        <h1 id="pageTitle">
+          Safety Dashboard
+        </h1>
 
-        <div class="metrics-grid">
-          <div class="metric-box"><span>Total Registered</span><strong id="mTotal">0</strong></div>
-          <div class="metric-box"><span>Tourists</span><strong id="mTourists">0</strong></div>
-          <div class="metric-box"><span>Volunteers</span><strong id="mVolunteers">0</strong></div>
-          <div class="metric-box alert-box"><span>Active SOS Alerts</span><strong id="mSOS">0</strong></div>
-        </div>
-
-        <!-- Staff WhatsApp Quick Dispatch Center -->
-        <div id="staffEmergencyQueue" class="victim-aid-status-box" style="display: none; background: rgba(220, 38, 38, 0.35); margin-bottom: 18px;">
-          <strong style="color: #fca5a5; font-size: 14px;">🚨 Active Emergency Incidents - Staff Command Broadcast Desk</strong>
-          <p style="font-size: 12px; margin-top: 4px;">Send official dispatch notices from this Command HQ phone to victim contacts and police desk:</p>
-          <div id="staffEmergencyQueueList" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
-        </div>
-
-        <div class="table-wrapper">
-          <table class="staff-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Phone</th>
-                <th>Blood</th>
-                <th>Emergency Contact</th>
-                <th>Coordinates</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="staffTableBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-
-    <!-- VIEW 3: SUPER ADMIN -->
-    <main id="superAdminPortal" class="page-view" style="display: none;">
-      <section class="staff-dashboard">
-        <div class="staff-header">
-          <h2>Master Control Overview</h2>
-          <div style="display:flex; gap:10px;">
-            <button class="refresh-btn" onclick="loadSuperAdminData()">↻ Refresh</button>
-            <button class="switch-user-btn" onclick="switchPortal('portalGateway')">Log Out</button>
-          </div>
-        </div>
-        <div class="metrics-grid">
-          <div class="metric-box"><span>Zones Active</span><strong id="saZones">0</strong></div>
-          <div class="metric-box"><span>Total Registered</span><strong id="saTotal">0</strong></div>
-          <div class="metric-box alert-box"><span>Active SOS Alerts</span><strong id="saSOS">0</strong></div>
-        </div>
-        <div class="table-wrapper">
-          <table class="staff-table">
-            <thead>
-              <tr>
-                <th>Zone</th>
-                <th>Status</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Phone</th>
-                <th>Live Coordinates</th>
-              </tr>
-            </thead>
-            <tbody id="superAdminTableBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-
-    <!-- MODAL 1: SOS INTENT & MISTAKE VERIFICATION -->
-    <div id="sosVerificationModal" class="modal-overlay" style="display: none; z-index: 2500;">
-      <div class="glass-modal" style="max-width: 440px; text-align: center; border-color: #ef4444;">
-        <div style="font-size: 38px;">⚠️</div>
-        <h2 style="color: #ffd000; font-size: 22px;">Confirm Distress State</h2>
-        <p style="margin: 12px 0; font-size: 13px; line-height: 1.5;">
-          Did you trigger this SOS / leave the safe boundary by mistake, or are you in need of immediate emergency assistance?
+        <p>
+          Tourist safety and emergency response system
         </p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
-          <button class="submit-btn" style="background: #22c55e; color: #022c0e; font-weight: 700;" onclick="handleVerificationResult(true)">✓ I'm Safe / Chilling</button>
-          <button class="submit-btn" style="background: #ef4444; color: #fff; font-weight: 700;" onclick="handleVerificationResult(false)">🚨 Confirm SOS</button>
-        </div>
       </div>
-    </div>
 
-    <!-- MODAL 2: DIGITAL TOURIST ID CARD & QR CODE -->
-    <div id="idCardModal" class="modal-overlay" style="display: none; z-index: 2200;">
-      <div class="glass-modal" style="max-width: 420px; padding: 0; background: transparent; border: none;">
-        <div class="tourist-id-badge" id="idCardBadge">
-          <div class="badge-header">
-            <strong>TS TOURIST SAFETY NETWORK</strong>
-            <button onclick="closeModal()" style="background: none; border: none; color: #fff; cursor: pointer;">✕</button>
-          </div>
-          <div class="badge-body">
-            <div class="badge-photo-container">
-              <img id="badgePhoto" src="" alt="Tourist Photo" style="display: none;">
-              <div id="badgePhotoPlaceholder" class="badge-photo-placeholder">👤</div>
-            </div>
-            <div class="badge-details">
-              <h3 id="badgeName">--</h3>
-              <p><small>ROLE:</small> <span id="badgeRole">--</span></p>
-              <p><small>ZONE:</small> <span id="badgeZone" style="color: #ffd000; font-weight: 700;">--</span></p>
-              <p><small>PHONE:</small> <span id="badgePhone">--</span></p>
-              <p><small>BLOOD:</small> <span id="badgeBlood" style="color: #ef4444; font-weight: 700;">--</span></p>
-              <p><small>EMERGENCY:</small> <span id="badgeEmerg">--</span></p>
-            </div>
-          </div>
-          <div class="badge-footer">
-            <img id="badgeQrCode" src="" alt="Verification QR Code">
-            <small style="font-size: 10px; opacity: 0.8;">Scan for verification &amp; distress telemetry</small>
-          </div>
-        </div>
+      <div class="status">
+        <span class="dot"></span>
+        System Online
       </div>
+
+    </header>
+
+
+    <!-- DASHBOARD -->
+
+    <section id="dashboard" class="page">
+
+      <div class="cards">
+
+        <div class="card">
+
+          <div class="icon blue">
+            T
+          </div>
+
+          <div>
+            <p>Registered Tourists</p>
+            <h2 id="touristCount">1</h2>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="icon green">
+            V
+          </div>
+
+          <div>
+            <p>Active Volunteers</p>
+            <h2 id="volunteerCount">3</h2>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="icon red">
+            !
+          </div>
+
+          <div>
+            <p>Active Emergencies</p>
+            <h2 id="alertCount">0</h2>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="icon orange">
+            L
+          </div>
+
+          <div>
+            <p>Locations Monitored</p>
+            <h2 id="locationCount">1</h2>
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="grid">
+
+
+        <!-- LOCATION -->
+
+        <div class="panel">
+
+          <h2>
+            Live Location Monitoring
+          </h2>
+
+          <div class="map">
+
+            <div class="road road1"></div>
+
+            <div class="road road2"></div>
+
+            <div class="marker tourist-marker">
+              T
+            </div>
+
+            <div class="marker volunteer-marker">
+              V
+            </div>
+
+            <div class="map-label">
+              Tourist Location
+            </div>
+
+          </div>
+
+
+          <div class="location-info">
+
+            <div>
+              <small>Latitude</small>
+
+              <strong id="latitude">
+                Waiting...
+              </strong>
+            </div>
+
+
+            <div>
+              <small>Longitude</small>
+
+              <strong id="longitude">
+                Waiting...
+              </strong>
+            </div>
+
+
+            <div>
+              <small>Last Update</small>
+
+              <strong id="lastUpdate">
+                Waiting...
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- SAFETY -->
+
+        <div class="panel">
+
+          <h2>
+            Safety Monitor
+          </h2>
+
+
+          <div class="risk-box">
+
+            <div class="risk-circle">
+
+              <span id="riskScore">
+                12
+              </span>
+
+              <small>
+                /100
+              </small>
+
+            </div>
+
+
+            <h3 id="riskStatus">
+              LOW RISK
+            </h3>
+
+
+            <p id="riskDescription">
+              Tourist movement appears normal.
+            </p>
+
+          </div>
+
+
+          <button
+            class="test-btn"
+            id="simulateEmergency">
+
+            Simulate Emergency
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- ACTIVITY -->
+
+      <div class="panel">
+
+        <h2>
+          Recent Activity
+        </h2>
+
+        <div id="activityList">
+
+          <div class="activity">
+
+            <span class="activity-icon">
+              OK
+            </span>
+
+            <div>
+
+              <strong>
+                System started
+              </strong>
+
+              <p>
+                Safety monitoring is active
+              </p>
+
+            </div>
+
+            <small>
+              Now
+            </small>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- TOURISTS -->
+
+    <section
+      id="tourists"
+      class="page hidden">
+
+      <div class="panel">
+
+        <div class="section-header">
+
+          <h2>
+            Tourist Registration
+          </h2>
+
+          <button
+            class="primary"
+            id="registerTouristButton">
+
+            Register Tourist
+
+          </button>
+
+        </div>
+
+
+        <div class="table-container">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>Name</th>
+
+                <th>Age</th>
+
+                <th>Phone</th>
+
+                <th>Location</th>
+
+                <th>Status</th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody id="touristTable">
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- VOLUNTEERS -->
+
+    <section
+      id="volunteers"
+      class="page hidden">
+
+      <div class="panel">
+
+        <h2>
+          Nearby Volunteers
+        </h2>
+
+        <div id="volunteerList">
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- ALERTS -->
+
+    <section
+      id="alerts"
+      class="page hidden">
+
+      <div class="panel">
+
+        <h2>
+          Emergency Alerts
+        </h2>
+
+        <div id="alertList">
+
+          <div class="no-alert">
+            No active emergencies
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- PROFILE -->
+
+    <section
+      id="profile"
+      class="page hidden">
+
+      <div class="panel profile">
+
+        <div class="profile-avatar">
+          T
+        </div>
+
+        <h2>
+          Tourist Profile
+        </h2>
+
+        <p>
+          Register yourself to activate safety monitoring.
+        </p>
+
+        <button
+          class="primary"
+          id="profileRegisterButton">
+
+          Register Profile
+
+        </button>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
+
+<!-- REGISTRATION MODAL -->
+
+<div
+  class="modal hidden"
+  id="registrationModal">
+
+  <div class="modal-content">
+
+    <div class="modal-header">
+
+      <h2>
+        Register Tourist
+      </h2>
+
+      <button id="closeModalButton">
+        X
+      </button>
+
     </div>
 
-    <!-- GENERAL MODALS -->
-    <div id="modalOverlay" class="modal-overlay" style="display: none;">
-      <!-- Staff Login / Desk Configuration -->
-      <section id="staffPasscodeModal" class="glass-modal auth-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
-        <h2>Staff Command Login</h2>
-        <p class="modal-hint">New zone code? This creates the zone HQ using the passcode you set below. Existing zone? Enter its passcode to sign in.</p>
-        <form id="staffAuthForm">
-          <div class="form-group">
-            <label>Zone Code</label>
-            <input type="text" id="staffZoneInput" required placeholder="e.g. GOA-NORTH" style="text-transform: uppercase;">
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label>Staff Command Desk Phone (For WhatsApp Broadcasts)</label>
-            <input type="tel" id="staffPhoneInput" required placeholder="+91 9876543210">
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label>Passcode</label>
-            <input type="password" id="staffPasscodeInput" required placeholder="Enter passcode" minlength="6">
-          </div>
-          <div id="staffAuthError" class="form-error" style="display:none;"></div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;">Login HQ</button>
-        </form>
-      </section>
 
-      <!-- Super Admin Login -->
-      <section id="superAdminAuthModal" class="glass-modal auth-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
-        <h2 style="color: #ffd000;">Master Admin Login</h2>
-        <form id="superAdminAuthForm">
-          <div class="form-group">
-            <label>Master Passcode</label>
-            <input type="password" id="superAdminPasscodeInput" required placeholder="Enter master passcode">
-          </div>
-          <div id="superAdminAuthError" class="form-error" style="display:none;"></div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #ffd000; color: #000; font-weight: 700;">Authorize</button>
-        </form>
-      </section>
+    <form id="registrationForm">
 
-      <!-- User Sign In -->
-      <section id="userSignInModal" class="glass-modal auth-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
-        <h2>User Sign In</h2>
-        <form id="userSignInForm">
-          <div class="form-group">
-            <label>Registered Phone Number</label>
-            <input type="tel" id="signInPhoneInput" required placeholder="+91 9876543210">
-          </div>
-          <div id="signInError" class="form-error" style="display:none;"></div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;">Restore Session</button>
-        </form>
-      </section>
 
-      <!-- Registration Form with Photo Upload -->
-      <section id="registrationPage" class="glass-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Close</button>
-        <h2 id="regTitle">Registration</h2>
-        <form id="registrationForm">
-          <div class="form-grid">
-            <div class="form-group full-width">
-              <label>Destination Zone Code</label>
-              <input type="text" id="regZone" required placeholder="e.g. GOA-NORTH" style="text-transform: uppercase;">
-            </div>
-            <div class="form-group full-width">
-              <label>Full Name</label>
-              <input type="text" id="regName" required placeholder="Your Name">
-            </div>
-            <div class="form-group">
-              <label>Phone Number</label>
-              <input type="tel" id="regPhone" required placeholder="+91 9876543210">
-            </div>
-            <div class="form-group">
-              <label>Blood Group</label>
-              <select id="regBlood" required>
-                <option value="" disabled selected>Select</option>
-                <option value="A+">A+</option><option value="A-">A-</option>
-                <option value="B+">B+</option><option value="B-">B-</option>
-                <option value="O+">O+</option><option value="O-">O-</option>
-                <option value="AB+">AB+</option><option value="AB-">AB-</option>
-                <option value="Unknown">Unknown</option>
-              </select>
-            </div>
-            <div class="form-group full-width">
-              <label>Primary Emergency Contact</label>
-              <input type="text" id="regEmergName" required placeholder="Contact Name">
-            </div>
-            <div class="form-group full-width">
-              <label>Emergency Contact Phone</label>
-              <input type="tel" id="regEmergPhone" required placeholder="+91 9876543211">
-            </div>
-            <div class="form-group full-width">
-              <label>Profile Picture (Optional for ID Card)</label>
-              <input type="file" id="regPhoto" accept="image/*" style="padding: 6px;">
-            </div>
-          </div>
-          <div id="regError" class="form-error" style="display:none;"></div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;" id="regSubmitBtn">Complete Registration &amp; Generate ID</button>
-        </form>
-      </section>
-    </div>
+      <label>
+        Name
+      </label>
 
-    <div id="toastContainer" class="toast-container"></div>
+      <input
+        id="name"
+        required
+        placeholder="Enter full name">
+
+
+      <label>
+        Age
+      </label>
+
+      <input
+        id="age"
+        type="number"
+        required
+        placeholder="Age">
+
+
+      <label>
+        Gender
+      </label>
+
+      <select id="gender">
+
+        <option>
+          Male
+        </option>
+
+        <option>
+          Female
+        </option>
+
+        <option>
+          Other
+        </option>
+
+      </select>
+
+
+      <label>
+        Phone Number
+      </label>
+
+      <input
+        id="phone"
+        required
+        placeholder="Enter phone number">
+
+
+      <label>
+        Emergency Contact
+      </label>
+
+      <input
+        id="emergency"
+        required
+        placeholder="Emergency contact">
+
+
+      <label>
+        Home Address
+      </label>
+
+      <textarea
+        id="address"
+        placeholder="Home address">
+      </textarea>
+
+
+      <button
+        class="primary full"
+        type="submit">
+
+        Register and Activate Safety
+
+      </button>
+
+    </form>
+
   </div>
-</body>
-</html>
+
+</div>
+
+
+
+<!-- EMERGENCY -->
+
+<div
+  id="emergencyPopup"
+  class="emergency-popup hidden">
+
+  <div class="emergency-content">
+
+    <div class="alarm">
+      !
+    </div>
+
+    <h1>
+      EMERGENCY DETECTED
+    </h1>
+
+    <p>
+      Possible tourist emergency detected.
+    </p>
+
+
+    <div class="emergency-location">
+
+      Tourist Location
+
+      <br>
+
+      <strong>
+        19.0760, 72.8777
+      </strong>
+
+    </div>
+
+
+    <div class="emergency-buttons">
+
+      <button
+        class="help"
+        id="helpButton">
+
+        HELP
+
+      </button>
+
+
+      <button
+        class="dismiss"
+        id="dismissButton">
+
+        Dismiss
+
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<!-- RESCUE -->
+
+<div
+  id="rescueMode"
+  class="rescue hidden">
+
+  <div class="rescue-box">
+
+    <button
+      class="close-rescue"
+      id="closeRescueButton">
+
+      X
+
+    </button>
+
+
+    <h1>
+      RESCUE MODE
+    </h1>
+
+    <p>
+      Navigate toward the victim.
+    </p>
+
+
+    <div class="compass">
+
+      <div id="arrow">
+        ^
+      </div>
+
+    </div>
+
+
+    <h2>
+      2.4 km
+    </h2>
+
+    <p>
+      Distance from victim
+    </p>
+
+
+    <div class="rescue-info">
+
+      <div>
+
+        Victim Location
+
+        <br>
+
+        <strong>
+          19.0760, 72.8777
+        </strong>
+
+      </div>
+
+
+      <div>
+
+        GPS
+
+        <br>
+
+        <strong>
+          ACTIVE
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <button
+      class="locate-btn"
+      id="locateVictimButton">
+
+      LOCATE VICTIM
+
+    </button>
+
+  </div>
+
+</div>
