@@ -935,7 +935,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dispatch Queue
+    // 1. Dispatch Queue with Direct Emergency Contact Dispatch
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -946,9 +946,15 @@ window.loadStaffMonitoringData = async function() {
     if (unhandledDistressSignals.length > 0 && dispatchQueueEl) {
       dispatchQueueEl.style.display = "flex";
       dispatchQueueEl.innerHTML = unhandledDistressSignals.map(sos => {
-        const victim = profileMap[String(sos.user_id)];
-        const victimName = victim ? victim.name : "Person in Distress";
-        const victimPhone = victim?.phone || "N/A";
+        const victim = profileMap[String(sos.user_id)] || {};
+        const victimName = victim.name || "Person in Distress";
+        const victimPhone = victim.phone || "N/A";
+        const em1Name = victim.emergency_contact_1 || "Primary Contact";
+        const em1Phone = victim.emergency_phone_1 || "";
+        const em2Name = victim.emergency_contact_2 || "Secondary Contact";
+        const em2Phone = victim.emergency_phone_2 || "";
+        const lat = sos.latitude;
+        const lon = sos.longitude;
 
         return `
           <div class="command-action-box">
@@ -956,9 +962,24 @@ window.loadStaffMonitoringData = async function() {
               <span class="hud-pulse"></span>
               <strong>CRITICAL ALERT (${currentZone}): ${victimName}</strong>
             </div>
-            <p>Deploy ${currentZone} Central Command emergency team to assist ${victimName}?</p>
-            <div class="dispatch-actions">
-              <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}', '${currentZone}')">✓ YES, DEPLOY COMMAND UNIT</button>
+            <p>Deploy ${currentZone} Central Command emergency team to assist ${victimName} (${victimPhone}) and alert emergency contacts?</p>
+            <div class="dispatch-actions" style="display:flex; flex-wrap:wrap; gap:8px;">
+              <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}', '${currentZone}')">✓ DEPLOY HQ UNIT</button>
+              
+              <!-- WhatsApp Distress to Primary Contact -->
+              ${em1Phone ? `
+                <button class="command-btn" style="background:#25D366; color:#fff;" onclick="notifyVictimEmergencyContact('${em1Name}', '${em1Phone}', '${victimName}', '${currentZone}', ${lat}, ${lon})">
+                  📲 Alert ${em1Name} (${em1Phone})
+                </button>
+              ` : ''}
+
+              <!-- WhatsApp Distress to Secondary Contact -->
+              ${em2Phone ? `
+                <button class="command-btn" style="background:#128C7E; color:#fff;" onclick="notifyVictimEmergencyContact('${em2Name}', '${em2Phone}', '${victimName}', '${currentZone}', ${lat}, ${lon})">
+                  📲 Alert ${em2Name} (${em2Phone})
+                </button>
+              ` : ''}
+
               <a href="tel:${victimPhone}" class="command-btn" style="background:#0284c7; color:#fff; text-decoration:none; display:inline-flex; align-items:center;">📞 CALL VICTIM</a>
               <button class="command-btn btn-no" onclick="dismissSpecificCommandPrompt('${sos.id}')">✕ STAND BY</button>
             </div>
@@ -969,7 +990,7 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. Zone Roster Table
+    // 2. Zone Roster Table (Adding Emergency Contact Alert Button in Table Row)
     if (profiles.length === 0) {
       tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
     } else {
@@ -1006,14 +1027,23 @@ window.loadStaffMonitoringData = async function() {
             <td>${roleBadge || 'User'}</td>
             <td><a href="tel:${p.phone}" style="color:#ffd000; text-decoration:none; font-weight:700;">📞 ${p.phone || 'N/A'}</a></td>
             <td>${p.blood_group || 'N/A'}</td>
-            <td>${p.emergency_contact_1 || 'N/A'} (<a href="tel:${p.emergency_phone_1}" style="color:#fff; text-decoration:none;">${p.emergency_phone_1 || 'N/A'}</a>)</td>
+            <td>
+              <div>
+                <strong>${p.emergency_contact_1 || 'N/A'}:</strong> 
+                <a href="tel:${p.emergency_phone_1}" style="color:#fff; text-decoration:none;">${p.emergency_phone_1 || 'N/A'}</a>
+                ${(isCriticalSOS && p.emergency_phone_1) ? `
+                  <button style="margin-left:6px; background:#25D366; color:#fff; border:none; padding:2px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold;" onclick="notifyVictimEmergencyContact('${p.emergency_contact_1}', '${p.emergency_phone_1}', '${p.name}', '${currentZone}', ${loc.latitude}, ${loc.longitude})">
+                    📲 Notify
+                  </button>
+                ` : ''}
+              </div>
+            </td>
             <td>${p.home_address || 'N/A'}</td>
             <td class="coord-cell">${coordsDisplay}</td>
           </tr>
         `;
       }).join("");
     }
-
     // 3. Multi-Case Live Maps
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
