@@ -53,7 +53,72 @@ let lastGeofenceCheckinTime = 0;
 let checkinCountdownInterval = null;
 
 // ==========================================
-// 2. ULTRA-FAST HIGH-PRECISION GPS ENGINE
+// 2. DIGITAL ID QR GENERATOR (LOCATION EXCLUDED)
+// ==========================================
+function formatProfileDataForQR(profile) {
+  return [
+    `=== TOURIST SAFETY DIGITAL ID ===`,
+    `Name: ${profile.name || 'N/A'}`,
+    `Age: ${profile.age || 'N/A'} | Gender: ${profile.gender || 'N/A'}`,
+    `Blood Group: ${profile.blood_group || 'N/A'}`,
+    `Phone: ${profile.phone || 'N/A'}`,
+    `Destination Zone: ${profile.zone_code || 'UNASSIGNED'}`,
+    `Role: ${[profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ")}`,
+    `Emergency Contact 1: ${profile.emergency_contact_1 || 'N/A'} (${profile.emergency_phone_1 || 'N/A'})`,
+    `Emergency Contact 2: ${profile.emergency_contact_2 || 'None'} (${profile.emergency_phone_2 || 'N/A'})`,
+    `Stay / Address: ${profile.home_address || 'N/A'}`
+  ].join("\n");
+}
+
+function renderQRCodeInElement(elementId, text, size = 160) {
+  const container = document.getElementById(elementId);
+  if (!container) return;
+  container.innerHTML = "";
+  if (typeof QRCode !== "undefined") {
+    new QRCode(container, {
+      text: text,
+      width: size,
+      height: size,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+}
+
+window.inspectUserProfileQR = function(encodedProfileJson) {
+  try {
+    const profile = JSON.parse(decodeURIComponent(encodedProfileJson));
+    const modal = document.getElementById("qrInspectionModal");
+    const overlay = document.getElementById("modalOverlay");
+    const titleEl = document.getElementById("inspectModalName");
+    const detailsEl = document.getElementById("inspectQRTextDetails");
+
+    if (titleEl) titleEl.innerText = `${profile.name}'s Digital ID`;
+
+    const qrText = formatProfileDataForQR(profile);
+    renderQRCodeInElement("inspectQRCodeContainer", qrText, 180);
+
+    if (detailsEl) {
+      detailsEl.innerHTML = `
+        <div><strong>Zone:</strong> <span style="color:#ffd000;">${profile.zone_code || 'UNASSIGNED'}</span></div>
+        <div><strong>Role:</strong> ${[profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ")}</div>
+        <div><strong>Phone:</strong> <a href="tel:${profile.phone}" style="color:#38bdf8;">${profile.phone || 'N/A'}</a></div>
+        <div><strong>Blood Group:</strong> <span style="color:#ef4444; font-weight:700;">${profile.blood_group || 'N/A'}</span></div>
+        <div><strong>Primary Contact:</strong> ${profile.emergency_contact_1 || 'N/A'} (${profile.emergency_phone_1 || 'N/A'})</div>
+        <div><strong>Address:</strong> ${profile.home_address || 'N/A'}</div>
+      `;
+    }
+
+    if (overlay) overlay.style.display = "flex";
+    if (modal) modal.style.display = "block";
+  } catch (err) {
+    console.error("QR Inspection Error:", err);
+  }
+};
+
+// ==========================================
+// 3. ULTRA-FAST HIGH-PRECISION GPS ENGINE
 // ==========================================
 async function requestScreenWakeLock() {
   try {
@@ -195,7 +260,7 @@ async function getLiveCommandHQData(zoneCode) {
 }
 
 // ==========================================
-// 3. SYNTHESIZED EMERGENCY SIREN & CHIME
+// 4. SYNTHESIZED EMERGENCY SIREN & CHIME
 // ==========================================
 class SirenSynthesizer {
   constructor() {
@@ -273,7 +338,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 4. DISTANCE, BEARING & MAP UTILITIES
+// 5. DISTANCE, BEARING & MAP UTILITIES
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined || lat1 === null || lon1 === null || lat2 === null || lon2 === null) return 0;
@@ -337,7 +402,6 @@ function createLeafletCustomPin(type, title) {
   });
 }
 
-// Emergency contact direct notifier via WhatsApp
 window.notifyVictimEmergencyContact = function(contactName, contactPhone, victimName, zoneCode, lat, lon) {
   if (!contactPhone || contactPhone === 'N/A') {
     alert("No phone number registered for this emergency contact.");
@@ -368,7 +432,7 @@ window.notifyVictimEmergencyContact = function(contactName, contactPhone, victim
 };
 
 // ==========================================
-// 5. GEOFENCE BOUNDARY & 20-MIN CHECK-IN
+// 6. GEOFENCE BOUNDARY & 20-MIN CHECK-IN
 // ==========================================
 async function fetchNearbyAIContext(lat, lon) {
   try {
@@ -540,7 +604,7 @@ window.dismissSafetyCheckin = async function(isSafe) {
 };
 
 // ==========================================
-// 6. STAFF GEOFENCE EDITOR
+// 7. STAFF GEOFENCE EDITOR
 // ==========================================
 window.initStaffGeofenceEditor = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
@@ -641,7 +705,7 @@ window.saveGeofenceConfiguration = async function() {
 };
 
 // ==========================================
-// 7. PORTAL VIEW CONTROLLER
+// 8. PORTAL VIEW CONTROLLER
 // ==========================================
 window.switchPortal = function(portalId) {
   ['portalGateway', 'userPortal', 'staffPortal', 'superAdminPortal'].forEach(id => {
@@ -685,9 +749,30 @@ async function updateUserStateView() {
   if (loggedOutSec) loggedOutSec.style.display = "none";
   if (loggedInSec) loggedInSec.style.display = "block";
 
+  const userRoles = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+
   if (nameEl) nameEl.innerText = profile.name;
-  if (roleEl) roleEl.innerText = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+  if (roleEl) roleEl.innerText = userRoles || "User";
   if (zoneBadge) zoneBadge.innerText = profile.zone_code || "UNASSIGNED";
+
+  // Update Digital Safety ID Elements
+  const idNameEl = document.getElementById("digitalIdName");
+  const idRoleEl = document.getElementById("digitalIdRole");
+  const idPhoneEl = document.getElementById("idPhone");
+  const idBloodEl = document.getElementById("idBlood");
+  const idEmergencyEl = document.getElementById("idEmergency");
+  const idAddressEl = document.getElementById("idAddress");
+
+  if (idNameEl) idNameEl.innerText = profile.name;
+  if (idRoleEl) idRoleEl.innerText = `${userRoles} • Blood: ${profile.blood_group || 'N/A'}`;
+  if (idPhoneEl) idPhoneEl.innerText = profile.phone || 'N/A';
+  if (idBloodEl) idBloodEl.innerText = profile.blood_group || 'N/A';
+  if (idEmergencyEl) idEmergencyEl.innerText = `${profile.emergency_contact_1 || 'N/A'} (${profile.emergency_phone_1 || 'N/A'})`;
+  if (idAddressEl) idAddressEl.innerText = profile.home_address || 'N/A';
+
+  // Render Personal Dynamic QR Code
+  const qrString = formatProfileDataForQR(profile);
+  renderQRCodeInElement("userPersonalQRCode", qrString, 140);
 
   const { data: activeSOS } = await supabase.from("sos_events").select("*").eq("user_id", userId).eq("status", "ACTIVE");
   const label = document.getElementById("sosLabel");
@@ -764,7 +849,7 @@ window.openRegistration = function(role) {
 };
 
 window.closeModal = function() {
-  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal', 'editProfileModal'].forEach(id => {
+  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal', 'editProfileModal', 'qrInspectionModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
   });
@@ -782,7 +867,7 @@ window.exitSuperAdminPortal = function() {
 };
 
 // ==========================================
-// 8. INDIVIDUAL-OWNED PROFILE EDIT
+// 9. INDIVIDUAL-OWNED PROFILE EDIT
 // ==========================================
 window.openEditOwnProfileModal = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -826,7 +911,7 @@ window.openEditOwnProfileModal = async function() {
 };
 
 // ==========================================
-// 9. WEBSITE HEAD MASTER OVERVIEW MATRIX
+// 10. WEBSITE HEAD MASTER OVERVIEW MATRIX
 // ==========================================
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
@@ -883,7 +968,7 @@ window.loadSuperAdminMatrix = async function() {
     }
 
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
       return;
     }
 
@@ -895,11 +980,17 @@ window.loadSuperAdminMatrix = async function() {
       let rowClass = isCriticalSOS ? "row-sos-red" : "row-normal";
       let statusTag = isCriticalSOS ? `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>` : `<span class="status-tag tag-green">Normal</span>`;
       const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+      const profileJsonEncoded = encodeURIComponent(JSON.stringify(p));
 
       return `
         <tr class="${rowClass}">
           <td><strong style="color: #ffd000;">${p.zone_code || 'UNASSIGNED'}</strong></td>
           <td>${statusTag}</td>
+          <td>
+            <button class="table-action-edit-btn" style="background:#ffd000; color:#000; font-weight:700;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">
+              🔍 View QR
+            </button>
+          </td>
           <td><strong>${p.name || 'Anonymous'}</strong></td>
           <td>${roleBadge || 'User'}</td>
           <td><a href="tel:${p.phone}" style="color:#ffd000; text-decoration:none; font-weight:700;">📞 ${p.phone || 'N/A'}</a></td>
@@ -917,7 +1008,7 @@ window.loadSuperAdminMatrix = async function() {
 };
 
 // ==========================================
-// 10. STAFF COMMAND MATRIX & DIRECT CALLING
+// 11. STAFF COMMAND MATRIX & DIRECT CALLING
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -1017,9 +1108,9 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. Zone Roster Table
+    // 2. Zone Roster Table (Features QR Digital ID Column)
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
     } else {
       tableBody.innerHTML = profiles.map(p => {
         const isCriticalSOS = activeSOSUserIds.has(String(p.id));
@@ -1046,10 +1137,16 @@ window.loadStaffMonitoringData = async function() {
 
         const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
         const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : `Live GPS Active`;
+        const profileJsonEncoded = encodeURIComponent(JSON.stringify(p));
 
         return `
           <tr class="${rowClass}">
             <td>${statusTag}</td>
+            <td>
+              <button class="table-action-edit-btn" style="background:#ffd000; color:#000; font-weight:700;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">
+                🔍 View ID
+              </button>
+            </td>
             <td><strong>${p.name || 'Anonymous'}</strong></td>
             <td>${roleBadge || 'User'}</td>
             <td><a href="tel:${p.phone}" style="color:#ffd000; text-decoration:none; font-weight:700;">📞 ${p.phone || 'N/A'}</a></td>
@@ -1206,6 +1303,7 @@ window.loadStaffMonitoringData = async function() {
 
         const em1Name = vic.emergency_contact_1 || "Primary Contact";
         const em1Phone = vic.emergency_phone_1 || "";
+        const profileJsonEncoded = encodeURIComponent(JSON.stringify(vic));
 
         const telemEl = document.getElementById(`telemetry_${vicId}`);
         if (telemEl) {
@@ -1213,6 +1311,7 @@ window.loadStaffMonitoringData = async function() {
             ${cmdDistanceText ? `<div style="color:#00d4ff;">🔵 ${cmdDistanceText}</div>` : ''}
             ${volDistanceText ? `<div style="color:#ffd000;">🟡 ${volDistanceText}</div>` : ''}
             <div style="margin-top:6px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+              <button class="table-action-edit-btn" style="background:#ffd000; color:#000; font-weight:700; font-size:10px; padding:4px 8px;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">🔍 Digital ID</button>
               <a href="tel:${vic.phone}" style="color:#fff; background:#ef4444; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">📞 Call Victim</a>
               ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
               ${volCallBtnHTML}
@@ -1283,7 +1382,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 11. PURGE & DELETE ZONE COMMAND CENTER
+// 12. PURGE & DELETE ZONE COMMAND CENTER
 // ==========================================
 window.handleDeleteCommandCenter = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
@@ -1323,7 +1422,7 @@ window.handleDeleteCommandCenter = async function() {
 };
 
 // ==========================================
-// 12. VOLUNTEER DISPATCH & ROUTING
+// 13. VOLUNTEER DISPATCH & ROUTING
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1465,7 +1564,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
     supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
     getLiveCommandHQData(zoneCode),
     getLiveGpsCoordinates(),
-    supabase.from("profiles").select("name, phone").eq("id", activeRescueTarget.user_id).maybeSingle()
+    supabase.from("profiles").select("*").eq("id", activeRescueTarget.user_id).maybeSingle()
   ]);
 
   const hasCommandAssistance = targetMissionsRes.data && targetMissionsRes.data.some(m => m.responder_type === 'COMMAND_CENTER');
@@ -1478,6 +1577,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
   const bearing = calculateBearing(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
   const routeInfo = calculateRouteAndETA(distKm);
   const googleMapsUrl = getGoogleMapsRouteUrl(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
+  const profileJsonEncoded = encodeURIComponent(JSON.stringify(victimProfile));
 
   const mapContainer = document.getElementById("volunteerLiveMap");
   if (mapContainer) {
@@ -1523,8 +1623,9 @@ async function updateVolunteerLocationConvergence(zoneCode) {
   if (actionsContainer) {
     actionsContainer.innerHTML = `
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="table-action-edit-btn" style="flex:1; background:#ffd000; color:#000; font-weight:700; font-size:11px;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">🔍 Victim Digital ID</button>
         <a href="tel:${victimProfile.phone}" style="flex:1; text-align:center; background:#ef4444; color:#fff; padding:6px 8px; border-radius:6px; font-weight:700; text-decoration:none; font-size:11px;">📞 Call ${victimProfile.name}</a>
-        <a href="${googleMapsUrl}" target="_blank" style="flex:1; text-align:center; background:#22c55e; color:#022c0e; padding:6px 8px; border-radius:6px; font-weight:700; text-decoration:none; font-size:11px;">🗺️ Route to Victim</a>
+        <a href="${googleMapsUrl}" target="_blank" style="flex:1; text-align:center; background:#22c55e; color:#022c0e; padding:6px 8px; border-radius:6px; font-weight:700; text-decoration:none; font-size:11px;">🗺️ Route</a>
       </div>
       ${cmdHQ.phone !== 'N/A' ? `
         <a href="tel:${cmdHQ.phone}" style="text-align:center; background:#0284c7; color:#fff; padding:5px 8px; border-radius:6px; font-weight:600; text-decoration:none; font-size:11px; display:block;">📞 Call HQ Helpline (${cmdHQ.phone})</a>
@@ -1540,7 +1641,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 13. VICTIM VIEW: RESCUE ROUTE & DIRECT CALLING
+// 14. VICTIM VIEW: RESCUE ROUTE & DIRECT CALLING
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1621,12 +1722,13 @@ async function checkVictimAidStatus() {
 
     if (volunteerMissions.length > 0) {
       const volIds = volunteerMissions.map(m => m.volunteer_id);
-      const { data: volProfiles } = await supabase.from("profiles").select("id, name, phone, latitude, longitude").in("id", volIds);
+      const { data: volProfiles } = await supabase.from("profiles").select("*").in("id", volIds);
 
       (volProfiles || []).forEach(vp => {
         const vLat = vp.latitude || vicLat;
         const vLon = vp.longitude || vicLon;
         const volPos = [vLat, vLon];
+        const profileJsonEncoded = encodeURIComponent(JSON.stringify(vp));
 
         if (!victimMarkers[vp.id]) {
           victimMarkers[vp.id] = L.marker(volPos, {
@@ -1647,8 +1749,9 @@ async function checkVictimAidStatus() {
               <small style="color: #ffd000; font-weight: 600;">Distance: ${formatDistance(distKm)} • ETA: ${volRoute.etaText}</small>
             </div>
             <div style="display:flex; gap:6px;">
+              <button class="table-action-edit-btn" style="background:#ffd000; color:#000; font-weight:700; font-size:11px;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">🔍 ID</button>
               <a href="tel:${vp.phone}">📞 Call</a>
-              <a href="${googleMapsNavUrl}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ View Route</a>
+              <a href="${googleMapsNavUrl}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ Route</a>
             </div>
           </div>
         `;
@@ -1675,7 +1778,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 14. SOS BROADCAST & STATE TRANSITION
+// 15. SOS BROADCAST & STATE TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1747,7 +1850,7 @@ function triggerVisualAlarm(activate) {
 }
 
 // ==========================================
-// 15. INDIVIDUAL USER ZONE EXIT & PURGE
+// 16. INDIVIDUAL USER ZONE EXIT & PURGE
 // ==========================================
 window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1782,7 +1885,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 16. BACKGROUND ENGINE & FORM LISTENERS
+// 17. BACKGROUND ENGINE & FORM LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -2054,7 +2157,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const roles = [isTourist && "Tourist", isVolunteer && "Volunteer"].filter(Boolean).join(" and ");
         const successMsg = document.getElementById("successMessage");
-        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'.`;
+        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'. Your Digital Safety ID is ready!`;
 
         regForm.reset();
         updateUserStateView();
@@ -2111,7 +2214,7 @@ window.addEventListener("DOMContentLoaded", () => {
           supabase.from("rescue_missions").update({ zone_code: updatedZone }).eq("target_user_id", profileId)
         ]);
 
-        alert("Your profile has been updated successfully!");
+        alert("Your profile and Digital Safety ID have been updated successfully!");
         window.closeModal();
 
         updateUserStateView();
