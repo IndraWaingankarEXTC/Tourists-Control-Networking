@@ -247,12 +247,12 @@ body {
 }
 
 .passport-photo-img {
-  width: 60px;
-  height: 60px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #ffd000;
-  box-shadow: 0 0 12px rgba(255, 208, 0, 0.5);
+  box-shadow: 0 0 14px rgba(255, 208, 0, 0.5);
   background: #0f172a;
 }
 
@@ -344,7 +344,7 @@ body {
   background: rgba(56, 189, 248, 0.25);
   border: 1px solid #38bdf8;
   color: #ffffff;
-  padding: 7px 14px;
+  padding: 8px 14px;
   border-radius: 10px;
   font-size: 12px;
   font-weight: 700;
