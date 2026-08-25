@@ -178,7 +178,6 @@ async function getLiveGpsCoordinates() {
   });
 }
 
-// Fetch HQ GPS along with Helpline Phone
 async function getLiveCommandHQData(zoneCode) {
   const fallback = await getLiveGpsCoordinates();
   if (!zoneCode) return { latitude: fallback.latitude, longitude: fallback.longitude, phone: 'N/A' };
@@ -338,6 +337,36 @@ function createLeafletCustomPin(type, title) {
   });
 }
 
+// Emergency contact direct notifier via WhatsApp
+window.notifyVictimEmergencyContact = function(contactName, contactPhone, victimName, zoneCode, lat, lon) {
+  if (!contactPhone || contactPhone === 'N/A') {
+    alert("No phone number registered for this emergency contact.");
+    return;
+  }
+
+  let cleanPhone = contactPhone.replace(/[^\d+]/g, '');
+  if (cleanPhone.startsWith('+')) {
+    cleanPhone = cleanPhone.substring(1);
+  }
+
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+  
+  const alertMessage = `🚨 *EMERGENCY DISTRESS ALERT - ${zoneCode} COMMAND CENTER* 🚨\n\n` +
+    `Dear ${contactName},\n` +
+    `Your contact *${victimName}* has triggered an active SOS distress alert in *${zoneCode}* zone.\n\n` +
+    `📍 *Live Location:* ${mapsUrl}\n` +
+    `⏰ *Time:* ${new Date().toLocaleTimeString()}\n\n` +
+    `Local Command Center and search & rescue teams have been dispatched. Please stand by or reach out to the local emergency authority.`;
+
+  const encodedMessage = encodeURIComponent(alertMessage);
+  const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
+  
+  const newWin = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  if (newWin) {
+    newWin.opener = null;
+  }
+};
+
 // ==========================================
 // 5. GEOFENCE BOUNDARY & 20-MIN CHECK-IN
 // ==========================================
@@ -412,7 +441,6 @@ async function checkTouristGeofenceBoundary() {
     if (desc) desc.innerText = `You are ${distFromCenter.toFixed(2)} km away from ${currentZone} safe boundary (Max: ${radiusKm} km).`;
 
     const now = Date.now();
-    // 20-minute cooldown interval
     const TWENTY_MINUTES_MS = 20 * 60 * 1000;
     if (now - lastGeofenceCheckinTime > TWENTY_MINUTES_MS) {
       triggerGeofenceSafetyCheckin(myCoords.latitude, myCoords.longitude, currentZone);
@@ -913,9 +941,10 @@ window.loadStaffMonitoringData = async function() {
     const profiles = profilesRes.data || [];
     const activeSOSEvents = sosRes.data || [];
     const locations = locsRes.data || [];
-    const activeMissions = missionsRes.data || [];
+    const rawMissions = missionsRes.data || [];
 
     const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
+    const activeMissions = rawMissions.filter(m => activeSOSUserIds.has(String(m.target_user_id)));
 
     const profileMap = {};
     profiles.forEach(p => { profileMap[String(p.id)] = p; });
@@ -935,7 +964,7 @@ window.loadStaffMonitoringData = async function() {
     document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
     document.getElementById("mSOS").innerText = activeSOSUserIds.size;
 
-    // 1. Dispatch Queue with Direct Emergency Contact Dispatch
+    // 1. Dispatch Queue
     const dispatchQueueEl = document.getElementById("commandDispatchQueue");
     const unhandledDistressSignals = activeSOSEvents.filter(sos => {
       const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
@@ -962,21 +991,19 @@ window.loadStaffMonitoringData = async function() {
               <span class="hud-pulse"></span>
               <strong>CRITICAL ALERT (${currentZone}): ${victimName}</strong>
             </div>
-            <p>Deploy ${currentZone} Central Command emergency team to assist ${victimName} (${victimPhone}) and alert emergency contacts?</p>
+            <p>Emergency alert triggered for ${victimName} (${victimPhone}). Dispatch units and alert emergency contacts below:</p>
             <div class="dispatch-actions" style="display:flex; flex-wrap:wrap; gap:8px;">
               <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}', '${currentZone}')">✓ DEPLOY HQ UNIT</button>
               
-              <!-- WhatsApp Distress to Primary Contact -->
               ${em1Phone ? `
                 <button class="command-btn" style="background:#25D366; color:#fff;" onclick="notifyVictimEmergencyContact('${em1Name}', '${em1Phone}', '${victimName}', '${currentZone}', ${lat}, ${lon})">
-                  📲 Alert ${em1Name} (${em1Phone})
+                  📲 Alert ${em1Name}
                 </button>
               ` : ''}
 
-              <!-- WhatsApp Distress to Secondary Contact -->
               ${em2Phone ? `
                 <button class="command-btn" style="background:#128C7E; color:#fff;" onclick="notifyVictimEmergencyContact('${em2Name}', '${em2Phone}', '${victimName}', '${currentZone}', ${lat}, ${lon})">
-                  📲 Alert ${em2Name} (${em2Phone})
+                  📲 Alert ${em2Name}
                 </button>
               ` : ''}
 
@@ -990,7 +1017,7 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. Zone Roster Table (Adding Emergency Contact Alert Button in Table Row)
+    // 2. Zone Roster Table
     if (profiles.length === 0) {
       tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
     } else {
@@ -1032,7 +1059,7 @@ window.loadStaffMonitoringData = async function() {
                 <strong>${p.emergency_contact_1 || 'N/A'}:</strong> 
                 <a href="tel:${p.emergency_phone_1}" style="color:#fff; text-decoration:none;">${p.emergency_phone_1 || 'N/A'}</a>
                 ${(isCriticalSOS && p.emergency_phone_1) ? `
-                  <button style="margin-left:6px; background:#25D366; color:#fff; border:none; padding:2px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold;" onclick="notifyVictimEmergencyContact('${p.emergency_contact_1}', '${p.emergency_phone_1}', '${p.name}', '${currentZone}', ${loc.latitude}, ${loc.longitude})">
+                  <button style="margin-left:6px; background:#25D366; color:#fff; border:none; padding:3px 8px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold;" onclick="notifyVictimEmergencyContact('${p.emergency_contact_1}', '${p.emergency_phone_1}', '${p.name}', '${currentZone}', ${loc.latitude}, ${loc.longitude})">
                     📲 Notify
                   </button>
                 ` : ''}
@@ -1044,44 +1071,57 @@ window.loadStaffMonitoringData = async function() {
         `;
       }).join("");
     }
+
     // 3. Multi-Case Live Maps
     const respondersPanel = document.getElementById("respondersList");
     const responderBadge = document.getElementById("responderCountBadge");
     const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
 
-    if (activeMissions.length > 0) {
+    const victimMissionsMap = {};
+    activeMissions.forEach(m => {
+      const vicId = String(m.target_user_id);
+      if (!victimMissionsMap[vicId]) victimMissionsMap[vicId] = [];
+      victimMissionsMap[vicId].push(m);
+    });
+
+    const activeCaseIds = Object.keys(victimMissionsMap);
+
+    Object.keys(staffMapInstances).forEach(id => {
+      if (!activeCaseIds.includes(id)) {
+        staffMapInstances[id].remove();
+        delete staffMapInstances[id];
+        delete staffMarkers[id];
+        const oldCard = document.getElementById(`cardWrapper_${id}`);
+        if (oldCard) oldCard.remove();
+      }
+    });
+
+    if (multiRadarGrid) {
+      const existingCards = multiRadarGrid.querySelectorAll(".radar-card-unit");
+      existingCards.forEach(card => {
+        const id = card.id.replace("cardWrapper_", "");
+        if (!activeCaseIds.includes(id)) {
+          card.remove();
+        }
+      });
+    }
+
+    if (activeCaseIds.length > 0) {
       const commandUnits = activeMissions.filter(m => m.responder_type === 'COMMAND_CENTER');
       const volunteerUnits = activeMissions.filter(m => m.responder_type === 'VOLUNTEER');
 
-      responderBadge.innerText = `${commandUnits.length} Command • ${volunteerUnits.length} Volunteer(s) Active`;
+      if (responderBadge) responderBadge.innerText = `${commandUnits.length} Command • ${volunteerUnits.length} Volunteer(s) Active`;
       if (multiRadarGrid) multiRadarGrid.style.display = "grid";
-
-      const victimMissionsMap = {};
-      activeMissions.forEach(m => {
-        const vicId = String(m.target_user_id);
-        if (!victimMissionsMap[vicId]) victimMissionsMap[vicId] = [];
-        victimMissionsMap[vicId].push(m);
-      });
-
-      const activeCaseIds = Object.keys(victimMissionsMap);
-
-      Object.keys(staffMapInstances).forEach(id => {
-        if (!activeCaseIds.includes(id)) {
-          staffMapInstances[id].remove();
-          delete staffMapInstances[id];
-          delete staffMarkers[id];
-        }
-      });
 
       activeCaseIds.forEach((vicId, index) => {
         const mapContainerId = `staffCaseMap_${vicId}`;
         let card = document.getElementById(`cardWrapper_${vicId}`);
         const vic = profileMap[vicId] || { name: 'Person in Distress', phone: 'N/A' };
 
-        if (!card) {
+        if (!card && multiRadarGrid) {
           const cardHTML = `
             <div id="cardWrapper_${vicId}" class="radar-card-unit">
-              <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name} (${vic.phone})</div>
+              <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name}</div>
               <div id="${mapContainerId}" class="whatsapp-live-map-window" style="height:190px;"></div>
               <div id="telemetry_${vicId}" class="radar-telemetry-text" style="line-height: 1.4; font-size: 11px;"></div>
             </div>
@@ -1164,6 +1204,9 @@ window.loadStaffMonitoringData = async function() {
           delete currentMarkers.volunteer;
         }
 
+        const em1Name = vic.emergency_contact_1 || "Primary Contact";
+        const em1Phone = vic.emergency_phone_1 || "";
+
         const telemEl = document.getElementById(`telemetry_${vicId}`);
         if (telemEl) {
           telemEl.innerHTML = `
@@ -1174,6 +1217,11 @@ window.loadStaffMonitoringData = async function() {
               ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
               ${volCallBtnHTML}
               ${volunteerMissions.length > 0 ? `<a href="${volMapsUrl}" target="_blank" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">🗺️ Volunteer Route</a>` : ''}
+              ${em1Phone ? `
+                <button style="background:#25D366; color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700; cursor:pointer;" onclick="notifyVictimEmergencyContact('${em1Name}', '${em1Phone}', '${vic.name}', '${currentZone}', ${vicLoc.latitude}, ${vicLoc.longitude})">
+                  📲 Alert Contact (${em1Name})
+                </button>
+              ` : ''}
             </div>
           `;
         }
@@ -1181,27 +1229,29 @@ window.loadStaffMonitoringData = async function() {
         map.invalidateSize();
       });
 
-      respondersPanel.innerHTML = activeMissions.map(m => {
-        const vic = profileMap[String(m.target_user_id)] || { name: 'Tourist', phone: 'N/A' };
-        if (m.responder_type === 'COMMAND_CENTER') {
-          return `
-            <div class="responder-item" style="border-color: #00d4ff;">
-              <strong style="color: #00d4ff;">🔵 ${currentZone} Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong> (<a href="tel:${vic.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vic.phone}</a>)</span>
-            </div>
-          `;
-        } else {
-          const vol = profileMap[String(m.volunteer_id)] || { name: 'Volunteer Unit', phone: 'N/A' };
-          return `
-            <div class="responder-item" style="border-color: #ffd000;">
-              <strong style="color: #ffd000;">🟡 Volunteer: ${vol.name}</strong> (<a href="tel:${vol.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vol.phone}</a>) ➔ <span style="color:#ffffff;">EN ROUTE TO: <strong>${vic.name}</strong> (<a href="tel:${vic.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vic.phone}</a>)</span>
-            </div>
-          `;
-        }
-      }).join("");
+      if (respondersPanel) {
+        respondersPanel.innerHTML = activeMissions.map(m => {
+          const vic = profileMap[String(m.target_user_id)] || { name: 'Tourist', phone: 'N/A' };
+          if (m.responder_type === 'COMMAND_CENTER') {
+            return `
+              <div class="responder-item" style="border-color: #00d4ff;">
+                <strong style="color: #00d4ff;">🔵 ${currentZone} Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong> (<a href="tel:${vic.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vic.phone}</a>)</span>
+              </div>
+            `;
+          } else {
+            const vol = profileMap[String(m.volunteer_id)] || { name: 'Volunteer Unit', phone: 'N/A' };
+            return `
+              <div class="responder-item" style="border-color: #ffd000;">
+                <strong style="color: #ffd000;">🟡 Volunteer: ${vol.name}</strong> (<a href="tel:${vol.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vol.phone}</a>) ➔ <span style="color:#ffffff;">EN ROUTE TO: <strong>${vic.name}</strong> (<a href="tel:${vic.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vic.phone}</a>)</span>
+              </div>
+            `;
+          }
+        }).join("");
+      }
     } else {
-      responderBadge.innerText = `0 Responders En Route`;
+      if (responderBadge) responderBadge.innerText = `0 Responders En Route`;
       if (multiRadarGrid) multiRadarGrid.style.display = "none";
-      respondersPanel.innerHTML = `<em>No active rescue missions underway in this zone. Standing by for alerts.</em>`;
+      if (respondersPanel) respondersPanel.innerHTML = `<em>No active rescue missions underway in this zone. Standing by for alerts.</em>`;
     }
 
   } catch (err) {
@@ -2080,31 +2130,3 @@ window.addEventListener("DOMContentLoaded", () => {
   setInterval(checkVictimAidStatus, 2000);
   setInterval(checkTouristGeofenceBoundary, 10000);
 });
-// ==========================================
-// EMERGENCY CONTACT NOTIFIER HELPER
-// ==========================================
-window.notifyVictimEmergencyContact = function(contactName, contactPhone, victimName, zoneCode, lat, lon) {
-  if (!contactPhone || contactPhone === 'N/A') {
-    alert("No phone number registered for this emergency contact.");
-    return;
-  }
-
-  // Clean phone number (removes spaces, hyphens, and parentheses)
-  const cleanPhone = contactPhone.replace(/[^\d+]/g, '');
-  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-  
-  // Standard formatted distress dispatch message
-  const alertMessage = `🚨 *EMERGENCY DISTRESS ALERT - ${zoneCode} COMMAND CENTER* 🚨\n\n` +
-    `Dear ${contactName},\n` +
-    `Your contact *${victimName}* has triggered an active SOS distress alert in *${zoneCode}* zone.\n\n` +
-    `📍 *Live Location:* ${mapsUrl}\n` +
-    `⏰ *Time:* ${new Date().toLocaleTimeString()}\n\n` +
-    `The Local Command Center and search & rescue teams have been dispatched. Please stand by or call the local response authority.`;
-
-  const encodedMessage = encodeURIComponent(alertMessage);
-  
-  // Open WhatsApp with pre-filled message
-  const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
-  
-  window.open(whatsappUrl, '_blank');
-};
