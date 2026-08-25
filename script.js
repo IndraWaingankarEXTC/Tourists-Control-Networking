@@ -51,7 +51,7 @@ let activeZoneGeofence = {
 let lastGeofenceCheckinTime = 0;
 let checkinCountdownInterval = null;
 
-const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 // ==========================================
 // 2. LIVE SELFIE CAMERA ENGINE
@@ -166,7 +166,7 @@ window.retakeLiveSelfie = function(videoId, previewId, placeholderId, hiddenInpu
 };
 
 // ==========================================
-// 3. REAL SCANNER-COMPLIANT QR CODE GENERATOR
+// 3. GOOGLE CHROME MODEL DIRECT QR GENERATOR
 // ==========================================
 function formatProfileDataForQR(profile) {
   const roles = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ") || "User";
@@ -174,36 +174,24 @@ function formatProfileDataForQR(profile) {
   const em2 = profile.emergency_contact_2 ? `${profile.emergency_contact_2} (${profile.emergency_phone_2 || 'N/A'})` : "None";
 
   return `TOURIST SAFETY DIGITAL ID
----------------------------
 Name: ${profile.name || 'N/A'}
 Role: ${roles}
 Zone: ${profile.zone_code || 'UNASSIGNED'}
 Phone: ${profile.phone || 'N/A'}
-Blood Group: ${profile.blood_group || 'N/A'}
-Age / Gender: ${profile.age || 'N/A'} / ${profile.gender || 'N/A'}
-Primary ICE Contact: ${em1}
-Secondary ICE Contact: ${em2}
-Stay Address: ${profile.home_address || 'N/A'}
-Verified ID: ${profile.id || 'N/A'}`;
+Blood: ${profile.blood_group || 'N/A'}
+Age/Gender: ${profile.age || 'N/A'}/${profile.gender || 'N/A'}
+ICE 1: ${em1}
+ICE 2: ${em2}
+Stay: ${profile.home_address || 'N/A'}`;
 }
 
 function renderQRCodeInElement(elementId, text, size = 180) {
   const container = document.getElementById(elementId);
   if (!container) return;
-  container.innerHTML = "";
-
-  if (typeof QRCode !== "undefined") {
-    new QRCode(container, {
-      text: text,
-      width: size,
-      height: size,
-      colorDark: "#000000",
-      colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.L
-    });
-  } else {
-    container.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}" width="${size}" height="${size}" alt="Digital ID QR" style="display:block; border-radius:8px;">`;
-  }
+  
+  // Directly loads QR code from Google's high-speed API engine (Same engine powering Chrome QR)
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`;
+  container.innerHTML = `<img src="${qrUrl}" width="${size}" height="${size}" alt="Digital ID QR Code" style="display:block; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.2);">`;
 }
 
 window.inspectUserProfileQR = function(encodedProfileJson) {
@@ -219,7 +207,7 @@ window.inspectUserProfileQR = function(encodedProfileJson) {
     if (selfieImg) selfieImg.src = profile.photo_url || DEFAULT_AVATAR;
 
     const qrText = formatProfileDataForQR(profile);
-    renderQRCodeInElement("inspectQRCodeContainer", qrText, 180);
+    renderQRCodeInElement("inspectQRCodeContainer", qrText, 200);
 
     if (detailsEl) {
       detailsEl.innerHTML = `
@@ -2224,7 +2212,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. User Registration (With Real Selfie Check)
+  // 5. User Registration
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
