@@ -133,13 +133,6 @@ body {
   margin: 0 auto;
 }
 
-.action-container {
-  width: min(900px, 100%);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-}
-
 .glass-card {
   position: relative;
   padding: 26px;
@@ -531,7 +524,7 @@ body {
 }
 
 .command-action-box p { font-size: 13px; color: #ffffff; margin-bottom: 14px; }
-.dispatch-actions { display: flex; gap: 12px; }
+.dispatch-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .command-btn { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: transform 0.15s ease; }
 .btn-yes { background: #22c55e; color: #022c0e; }
 .btn-no { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
