@@ -18,6 +18,9 @@ let compassInterval = null;
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 
+// Active Media Camera Stream State
+let activeCameraMediaStream = null;
+
 // High-Precision Hardware GPS State
 let verifiedGpsCoords = null;
 let verifiedGpsAccuracy = null;
@@ -52,22 +55,112 @@ let activeZoneGeofence = {
 let lastGeofenceCheckinTime = 0;
 let checkinCountdownInterval = null;
 
+// Default Avatar Fallback
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
 // ==========================================
-// 2. DIGITAL ID QR GENERATOR (LOCATION EXCLUDED)
+// 2. LIVE SELFIE CAMERA ENGINE
 // ==========================================
+window.stopLiveCameraStream = function() {
+  if (activeCameraMediaStream) {
+    activeCameraMediaStream.getTracks().forEach(track => track.stop());
+    activeCameraMediaStream = null;
+  }
+};
+
+window.startLiveCamera = async function(videoId, previewId, captureBtnId, retakeBtnId) {
+  window.stopLiveCameraStream();
+  const video = document.getElementById(videoId);
+  const preview = document.getElementById(previewId);
+  const captureBtn = document.getElementById(captureBtnId);
+  const retakeBtn = document.getElementById(retakeBtnId);
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Camera access is not supported by your browser.");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 480 } },
+      audio: false
+    });
+
+    activeCameraMediaStream = stream;
+    video.srcObject = stream;
+    video.style.display = "block";
+    if (preview) preview.style.display = "none";
+    if (captureBtn) captureBtn.style.display = "inline-block";
+    if (retakeBtn) retakeBtn.style.display = "none";
+  } catch (err) {
+    alert(`Could not access front camera: ${err.message}`);
+  }
+};
+
+window.captureLiveSelfie = function(videoId, canvasId, previewId, hiddenInputId, captureBtnId, retakeBtnId) {
+  const video = document.getElementById(videoId);
+  const canvas = document.getElementById(canvasId);
+  const preview = document.getElementById(previewId);
+  const hiddenInput = document.getElementById(hiddenInputId);
+  const captureBtn = document.getElementById(captureBtnId);
+  const retakeBtn = document.getElementById(retakeBtnId);
+
+  if (!video || !canvas) return;
+
+  const width = video.videoWidth || 320;
+  const height = video.videoHeight || 320;
+
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, width, height);
+
+  // Compress image to lightweight JPEG format
+  const base64Data = canvas.toDataURL('image/jpeg', 0.85);
+
+  if (hiddenInput) hiddenInput.value = base64Data;
+  if (preview) {
+    preview.src = base64Data;
+    preview.style.display = "block";
+  }
+
+  video.style.display = "none";
+  if (captureBtn) captureBtn.style.display = "none";
+  if (retakeBtn) retakeBtn.style.display = "inline-block";
+
+  window.stopLiveCameraStream();
+};
+
+window.retakeLiveSelfie = function(videoId, previewId, hiddenInputId, captureBtnId, retakeBtnId) {
+  const hiddenInput = document.getElementById(hiddenInputId);
+  if (hiddenInput) hiddenInput.value = "";
+  window.startLiveCamera(videoId, previewId, captureBtnId, retakeBtnId);
+};
+
+// ==========================================
+// 3. DIGITAL ID REAL RAW QR GENERATOR
+// ==========================================
+// Produces real structured JSON with location excluded
 function formatProfileDataForQR(profile) {
-  return [
-    `=== TOURIST SAFETY DIGITAL ID ===`,
-    `Name: ${profile.name || 'N/A'}`,
-    `Age: ${profile.age || 'N/A'} | Gender: ${profile.gender || 'N/A'}`,
-    `Blood Group: ${profile.blood_group || 'N/A'}`,
-    `Phone: ${profile.phone || 'N/A'}`,
-    `Destination Zone: ${profile.zone_code || 'UNASSIGNED'}`,
-    `Role: ${[profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ")}`,
-    `Emergency Contact 1: ${profile.emergency_contact_1 || 'N/A'} (${profile.emergency_phone_1 || 'N/A'})`,
-    `Emergency Contact 2: ${profile.emergency_contact_2 || 'None'} (${profile.emergency_phone_2 || 'N/A'})`,
-    `Stay / Address: ${profile.home_address || 'N/A'}`
-  ].join("\n");
+  const payload = {
+    safety_id: profile.id,
+    type: "TOURIST_SAFETY_PASSPORT",
+    name: profile.name || "N/A",
+    age: profile.age || null,
+    gender: profile.gender || "N/A",
+    blood_group: profile.blood_group || "N/A",
+    phone: profile.phone || "N/A",
+    zone: profile.zone_code || "UNASSIGNED",
+    role: [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & "),
+    emergency_contacts: [
+      { name: profile.emergency_contact_1, phone: profile.emergency_phone_1 },
+      { name: profile.emergency_contact_2, phone: profile.emergency_phone_2 }
+    ].filter(c => c.name && c.phone),
+    stay_address: profile.home_address || "N/A",
+    verified_at: new Date().toISOString()
+  };
+
+  return JSON.stringify(payload, null, 2);
 }
 
 function renderQRCodeInElement(elementId, text, size = 160) {
@@ -93,8 +186,10 @@ window.inspectUserProfileQR = function(encodedProfileJson) {
     const overlay = document.getElementById("modalOverlay");
     const titleEl = document.getElementById("inspectModalName");
     const detailsEl = document.getElementById("inspectQRTextDetails");
+    const selfieImg = document.getElementById("inspectSelfieImg");
 
-    if (titleEl) titleEl.innerText = `${profile.name}'s Digital ID`;
+    if (titleEl) titleEl.innerText = `${profile.name}'s Verified ID`;
+    if (selfieImg) selfieImg.src = profile.photo_url || DEFAULT_AVATAR;
 
     const qrText = formatProfileDataForQR(profile);
     renderQRCodeInElement("inspectQRCodeContainer", qrText, 180);
@@ -106,7 +201,7 @@ window.inspectUserProfileQR = function(encodedProfileJson) {
         <div><strong>Phone:</strong> <a href="tel:${profile.phone}" style="color:#38bdf8;">${profile.phone || 'N/A'}</a></div>
         <div><strong>Blood Group:</strong> <span style="color:#ef4444; font-weight:700;">${profile.blood_group || 'N/A'}</span></div>
         <div><strong>Primary Contact:</strong> ${profile.emergency_contact_1 || 'N/A'} (${profile.emergency_phone_1 || 'N/A'})</div>
-        <div><strong>Address:</strong> ${profile.home_address || 'N/A'}</div>
+        <div><strong>Stay Address:</strong> ${profile.home_address || 'N/A'}</div>
       `;
     }
 
@@ -118,7 +213,7 @@ window.inspectUserProfileQR = function(encodedProfileJson) {
 };
 
 // ==========================================
-// 3. ULTRA-FAST HIGH-PRECISION GPS ENGINE
+// 4. GPS & TELEMETRY ENGINE
 // ==========================================
 async function requestScreenWakeLock() {
   try {
@@ -260,7 +355,7 @@ async function getLiveCommandHQData(zoneCode) {
 }
 
 // ==========================================
-// 4. SYNTHESIZED EMERGENCY SIREN & CHIME
+// 5. SYNTHESIZED EMERGENCY SIREN
 // ==========================================
 class SirenSynthesizer {
   constructor() {
@@ -338,7 +433,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 5. DISTANCE, BEARING & MAP UTILITIES
+// 6. DISTANCE & MAP HELPERS
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined || lat1 === null || lon1 === null || lat2 === null || lon2 === null) return 0;
@@ -432,7 +527,7 @@ window.notifyVictimEmergencyContact = function(contactName, contactPhone, victim
 };
 
 // ==========================================
-// 6. GEOFENCE BOUNDARY & 20-MIN CHECK-IN
+// 7. GEOFENCE BOUNDARY & 20-MIN CHECK-IN
 // ==========================================
 async function fetchNearbyAIContext(lat, lon) {
   try {
@@ -604,7 +699,7 @@ window.dismissSafetyCheckin = async function(isSafe) {
 };
 
 // ==========================================
-// 7. STAFF GEOFENCE EDITOR
+// 8. STAFF GEOFENCE EDITOR
 // ==========================================
 window.initStaffGeofenceEditor = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
@@ -705,9 +800,10 @@ window.saveGeofenceConfiguration = async function() {
 };
 
 // ==========================================
-// 8. PORTAL VIEW CONTROLLER
+// 9. PORTAL VIEW CONTROLLER
 // ==========================================
 window.switchPortal = function(portalId) {
+  window.stopLiveCameraStream();
   ['portalGateway', 'userPortal', 'staffPortal', 'superAdminPortal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = (id === portalId) ? 'block' : 'none';
@@ -755,13 +851,14 @@ async function updateUserStateView() {
   if (roleEl) roleEl.innerText = userRoles || "User";
   if (zoneBadge) zoneBadge.innerText = profile.zone_code || "UNASSIGNED";
 
-  // Update Digital Safety ID Elements
+  // Update Digital Safety ID Card & Selfie Photo
   const idNameEl = document.getElementById("digitalIdName");
   const idRoleEl = document.getElementById("digitalIdRole");
   const idPhoneEl = document.getElementById("idPhone");
   const idBloodEl = document.getElementById("idBlood");
   const idEmergencyEl = document.getElementById("idEmergency");
   const idAddressEl = document.getElementById("idAddress");
+  const passportPhoto = document.getElementById("passportSelfiePhoto");
 
   if (idNameEl) idNameEl.innerText = profile.name;
   if (idRoleEl) idRoleEl.innerText = `${userRoles} • Blood: ${profile.blood_group || 'N/A'}`;
@@ -769,8 +866,9 @@ async function updateUserStateView() {
   if (idBloodEl) idBloodEl.innerText = profile.blood_group || 'N/A';
   if (idEmergencyEl) idEmergencyEl.innerText = `${profile.emergency_contact_1 || 'N/A'} (${profile.emergency_phone_1 || 'N/A'})`;
   if (idAddressEl) idAddressEl.innerText = profile.home_address || 'N/A';
+  if (passportPhoto) passportPhoto.src = profile.photo_url || DEFAULT_AVATAR;
 
-  // Render Personal Dynamic QR Code
+  // Render Real Dynamic QR Code
   const qrString = formatProfileDataForQR(profile);
   renderQRCodeInElement("userPersonalQRCode", qrString, 140);
 
@@ -849,6 +947,7 @@ window.openRegistration = function(role) {
 };
 
 window.closeModal = function() {
+  window.stopLiveCameraStream();
   ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal', 'editProfileModal', 'qrInspectionModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
@@ -867,7 +966,7 @@ window.exitSuperAdminPortal = function() {
 };
 
 // ==========================================
-// 9. INDIVIDUAL-OWNED PROFILE EDIT
+// 10. INDIVIDUAL-OWNED PROFILE EDIT
 // ==========================================
 window.openEditOwnProfileModal = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -903,6 +1002,16 @@ window.openEditOwnProfileModal = async function() {
   document.getElementById("editHomeAddress").value = profile.home_address || "";
   document.getElementById("editIsTourist").checked = profile.is_tourist === true;
   document.getElementById("editIsVolunteer").checked = profile.is_volunteer === true;
+  
+  const editPreview = document.getElementById("editSelfiePreview");
+  const editHiddenData = document.getElementById("editCapturedSelfieData");
+  if (editPreview) {
+    editPreview.src = profile.photo_url || DEFAULT_AVATAR;
+    editPreview.style.display = "block";
+  }
+  if (editHiddenData) {
+    editHiddenData.value = profile.photo_url || "";
+  }
 
   const overlay = document.getElementById("modalOverlay");
   const editModal = document.getElementById("editProfileModal");
@@ -911,7 +1020,7 @@ window.openEditOwnProfileModal = async function() {
 };
 
 // ==========================================
-// 10. WEBSITE HEAD MASTER OVERVIEW MATRIX
+// 11. WEBSITE HEAD MASTER OVERVIEW MATRIX
 // ==========================================
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
@@ -968,7 +1077,7 @@ window.loadSuperAdminMatrix = async function() {
     }
 
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="11" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
       return;
     }
 
@@ -986,6 +1095,7 @@ window.loadSuperAdminMatrix = async function() {
         <tr class="${rowClass}">
           <td><strong style="color: #ffd000;">${p.zone_code || 'UNASSIGNED'}</strong></td>
           <td>${statusTag}</td>
+          <td><img src="${p.photo_url || DEFAULT_AVATAR}" class="table-avatar-img" alt="Selfie"></td>
           <td>
             <button class="table-action-edit-btn" style="background:#ffd000; color:#000; font-weight:700;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">
               🔍 View QR
@@ -1008,7 +1118,7 @@ window.loadSuperAdminMatrix = async function() {
 };
 
 // ==========================================
-// 11. STAFF COMMAND MATRIX & DIRECT CALLING
+// 12. STAFF COMMAND MATRIX
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -1108,9 +1218,9 @@ window.loadStaffMonitoringData = async function() {
       dispatchQueueEl.style.display = "none";
     }
 
-    // 2. Zone Roster Table (Features QR Digital ID Column)
+    // 2. Zone Roster Table
     if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
     } else {
       tableBody.innerHTML = profiles.map(p => {
         const isCriticalSOS = activeSOSUserIds.has(String(p.id));
@@ -1142,6 +1252,7 @@ window.loadStaffMonitoringData = async function() {
         return `
           <tr class="${rowClass}">
             <td>${statusTag}</td>
+            <td><img src="${p.photo_url || DEFAULT_AVATAR}" class="table-avatar-img" alt="Selfie"></td>
             <td>
               <button class="table-action-edit-btn" style="background:#ffd000; color:#000; font-weight:700;" onclick="inspectUserProfileQR('${profileJsonEncoded}')">
                 🔍 View ID
@@ -1382,7 +1493,7 @@ window.dismissSpecificCommandPrompt = function(sosId) {
 };
 
 // ==========================================
-// 12. PURGE & DELETE ZONE COMMAND CENTER
+// 13. PURGE & DELETE ZONE COMMAND CENTER
 // ==========================================
 window.handleDeleteCommandCenter = async function() {
   const currentZone = sessionStorage.getItem("staffZoneCode");
@@ -1422,7 +1533,7 @@ window.handleDeleteCommandCenter = async function() {
 };
 
 // ==========================================
-// 13. VOLUNTEER DISPATCH & ROUTING
+// 14. VOLUNTEER DISPATCH & ROUTING
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1641,7 +1752,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 14. VICTIM VIEW: RESCUE ROUTE & DIRECT CALLING
+// 15. VICTIM VIEW: RESCUE ROUTE & DIRECT CALLING
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1778,7 +1889,7 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 15. SOS BROADCAST & STATE TRANSITION
+// 16. SOS BROADCAST & STATE TRANSITION
 // ==========================================
 window.handleSOSToggle = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1850,7 +1961,7 @@ function triggerVisualAlarm(activate) {
 }
 
 // ==========================================
-// 16. INDIVIDUAL USER ZONE EXIT & PURGE
+// 17. INDIVIDUAL USER ZONE EXIT & PURGE
 // ==========================================
 window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1859,7 +1970,7 @@ window.handleSelfOptOut = async function() {
     return;
   }
 
-  const confirmed = confirm("Are you sure you want to leave this event zone? This will permanently delete your registration and real-time location telemetry.");
+  const confirmed = confirm("Are you sure you want to leave this event zone? This will permanently delete your registration, selfie, and real-time location telemetry.");
   if (!confirmed) return;
 
   try {
@@ -1877,7 +1988,7 @@ window.handleSelfOptOut = async function() {
       window.handleSOSToggle();
     }
 
-    alert("You have left the event zone. Your telemetry has been completely purged.");
+    alert("You have left the event zone. Your telemetry and selfie have been completely purged.");
     window.switchPortal("portalGateway");
   } catch (err) {
     alert(`Failed to leave zone: ${err.message}`);
@@ -1885,7 +1996,7 @@ window.handleSelfOptOut = async function() {
 };
 
 // ==========================================
-// 17. BACKGROUND ENGINE & FORM LISTENERS
+// 18. BACKGROUND ENGINE & FORM LISTENERS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
 
@@ -2081,11 +2192,17 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. User Registration
+  // 5. User Registration (Includes Live Selfie Snapshot)
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+
+      const selfiePhoto = document.getElementById("capturedSelfieData")?.value;
+      if (!selfiePhoto) {
+        alert("Please open the camera and take a live selfie before completing registration.");
+        return;
+      }
 
       const submitBtn = document.getElementById("regSubmitBtn");
       submitBtn.disabled = true;
@@ -2110,6 +2227,7 @@ window.addEventListener("DOMContentLoaded", () => {
         emergency_contact_2: document.getElementById("emergency2")?.value.trim() || null,
         emergency_phone_2: document.getElementById("emergencyPhone2")?.value.trim() || null,
         home_address: document.getElementById("homeAddress").value.trim(),
+        photo_url: selfiePhoto,
         is_tourist: isTourist,
         is_volunteer: isVolunteer,
         latitude: coords.latitude,
@@ -2152,12 +2270,13 @@ window.addEventListener("DOMContentLoaded", () => {
           longitude: coords.longitude
         });
 
+        window.stopLiveCameraStream();
         document.getElementById("registrationPage").style.display = "none";
         document.getElementById("successPage").style.display = "block";
 
         const roles = [isTourist && "Tourist", isVolunteer && "Volunteer"].filter(Boolean).join(" and ");
         const successMsg = document.getElementById("successMessage");
-        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'. Your Digital Safety ID is ready!`;
+        if (successMsg) successMsg.innerText = `You have registered as ${roles} under Destination Zone '${destinationZone}'. Your Digital Safety Passport is ready!`;
 
         regForm.reset();
         updateUserStateView();
@@ -2166,7 +2285,7 @@ window.addEventListener("DOMContentLoaded", () => {
         alert(`Registration error: ${err.message}`);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.innerText = "Complete Registration";
+        submitBtn.innerText = "Complete Registration & Issue Digital ID";
       }
     });
   }
@@ -2183,6 +2302,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const profileId = document.getElementById("editProfileId").value;
       const updatedZone = document.getElementById("editZoneCode").value.trim().toUpperCase();
+      const updatedSelfie = document.getElementById("editCapturedSelfieData").value;
 
       const payload = {
         zone_code: updatedZone,
@@ -2200,6 +2320,10 @@ window.addEventListener("DOMContentLoaded", () => {
         is_volunteer: document.getElementById("editIsVolunteer").checked
       };
 
+      if (updatedSelfie) {
+        payload.photo_url = updatedSelfie;
+      }
+
       try {
         const { error } = await supabase
           .from("profiles")
@@ -2214,6 +2338,7 @@ window.addEventListener("DOMContentLoaded", () => {
           supabase.from("rescue_missions").update({ zone_code: updatedZone }).eq("target_user_id", profileId)
         ]);
 
+        window.stopLiveCameraStream();
         alert("Your profile and Digital Safety ID have been updated successfully!");
         window.closeModal();
 
@@ -2223,7 +2348,7 @@ window.addEventListener("DOMContentLoaded", () => {
         alert(`Update error: ${err.message}`);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.innerText = "💾 Update My Profile";
+        submitBtn.innerText = "💾 Update Profile & Digital ID";
       }
     });
   }
