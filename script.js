@@ -18,16 +18,13 @@ let compassInterval = null;
 let dismissedVolunteerSOS = new Set();
 let dismissedCommandSOS = new Set();
 
-// Active Media Camera Stream State
 let activeCameraMediaStream = null;
 
-// High-Precision Hardware GPS State
 let verifiedGpsCoords = null;
 let verifiedGpsAccuracy = null;
 let gpsWatchId = null;
 let wakeLockSentinel = null;
 
-// Persistent Leaflet Maps & Markers
 let victimMapInstance = null;
 let victimMarkers = {};
 
@@ -45,7 +42,6 @@ let staffGeofenceMapInstance = null;
 let staffGeofenceCircle = null;
 let staffGeofenceCenterMarker = null;
 
-// Active Geofence State
 let activeZoneGeofence = {
   latitude: null,
   longitude: null,
@@ -55,7 +51,6 @@ let activeZoneGeofence = {
 let lastGeofenceCheckinTime = 0;
 let checkinCountdownInterval = null;
 
-// Default Avatar Fallback
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 // ==========================================
@@ -68,15 +63,46 @@ window.stopLiveCameraStream = function() {
   }
 };
 
-window.startLiveCamera = async function(videoId, previewId, captureBtnId, retakeBtnId) {
+window.handleNativeSelfieCapture = function(event, previewId, placeholderId, hiddenInputId, videoId, captureBtnId, retakeBtnId) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64Data = e.target.result;
+    
+    const preview = document.getElementById(previewId);
+    const placeholder = document.getElementById(placeholderId);
+    const hiddenInput = document.getElementById(hiddenInputId);
+    const video = document.getElementById(videoId);
+    const captureBtn = document.getElementById(captureBtnId);
+    const retakeBtn = document.getElementById(retakeBtnId);
+
+    if (hiddenInput) hiddenInput.value = base64Data;
+    if (preview) {
+      preview.src = base64Data;
+      preview.style.display = "block";
+    }
+    if (placeholder) placeholder.style.display = "none";
+    if (video) video.style.display = "none";
+    if (captureBtn) captureBtn.style.display = "none";
+    if (retakeBtn) retakeBtn.style.display = "inline-block";
+
+    window.stopLiveCameraStream();
+  };
+  reader.readAsDataURL(file);
+};
+
+window.startLiveCamera = async function(videoId, previewId, placeholderId, captureBtnId, retakeBtnId) {
   window.stopLiveCameraStream();
   const video = document.getElementById(videoId);
   const preview = document.getElementById(previewId);
+  const placeholder = document.getElementById(placeholderId);
   const captureBtn = document.getElementById(captureBtnId);
   const retakeBtn = document.getElementById(retakeBtnId);
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert("Camera access is not supported by your browser.");
+    alert("Live stream camera is not supported. Use the '📱 Tap to Open Camera' button instead.");
     return;
   }
 
@@ -90,17 +116,19 @@ window.startLiveCamera = async function(videoId, previewId, captureBtnId, retake
     video.srcObject = stream;
     video.style.display = "block";
     if (preview) preview.style.display = "none";
+    if (placeholder) placeholder.style.display = "none";
     if (captureBtn) captureBtn.style.display = "inline-block";
     if (retakeBtn) retakeBtn.style.display = "none";
   } catch (err) {
-    alert(`Could not access front camera: ${err.message}`);
+    alert(`Could not start live stream: ${err.message}. Please use '📱 Tap to Open Camera'.`);
   }
 };
 
-window.captureLiveSelfie = function(videoId, canvasId, previewId, hiddenInputId, captureBtnId, retakeBtnId) {
+window.captureLiveSelfie = function(videoId, canvasId, previewId, placeholderId, hiddenInputId, captureBtnId, retakeBtnId) {
   const video = document.getElementById(videoId);
   const canvas = document.getElementById(canvasId);
   const preview = document.getElementById(previewId);
+  const placeholder = document.getElementById(placeholderId);
   const hiddenInput = document.getElementById(hiddenInputId);
   const captureBtn = document.getElementById(captureBtnId);
   const retakeBtn = document.getElementById(retakeBtnId);
@@ -115,7 +143,6 @@ window.captureLiveSelfie = function(videoId, canvasId, previewId, hiddenInputId,
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, width, height);
 
-  // Compress image to lightweight JPEG format
   const base64Data = canvas.toDataURL('image/jpeg', 0.85);
 
   if (hiddenInput) hiddenInput.value = base64Data;
@@ -123,6 +150,7 @@ window.captureLiveSelfie = function(videoId, canvasId, previewId, hiddenInputId,
     preview.src = base64Data;
     preview.style.display = "block";
   }
+  if (placeholder) placeholder.style.display = "none";
 
   video.style.display = "none";
   if (captureBtn) captureBtn.style.display = "none";
@@ -131,42 +159,39 @@ window.captureLiveSelfie = function(videoId, canvasId, previewId, hiddenInputId,
   window.stopLiveCameraStream();
 };
 
-window.retakeLiveSelfie = function(videoId, previewId, hiddenInputId, captureBtnId, retakeBtnId) {
+window.retakeLiveSelfie = function(videoId, previewId, placeholderId, hiddenInputId, captureBtnId, retakeBtnId) {
   const hiddenInput = document.getElementById(hiddenInputId);
   if (hiddenInput) hiddenInput.value = "";
-  window.startLiveCamera(videoId, previewId, captureBtnId, retakeBtnId);
+  window.startLiveCamera(videoId, previewId, placeholderId, captureBtnId, retakeBtnId);
 };
 
 // ==========================================
-// 3. DIGITAL ID REAL RAW QR GENERATOR
+// 3. REAL SCANNER-COMPLIANT QR CODE GENERATOR
 // ==========================================
-// Produces real structured JSON with location excluded
 function formatProfileDataForQR(profile) {
-  const payload = {
-    safety_id: profile.id,
-    type: "TOURIST_SAFETY_PASSPORT",
-    name: profile.name || "N/A",
-    age: profile.age || null,
-    gender: profile.gender || "N/A",
-    blood_group: profile.blood_group || "N/A",
-    phone: profile.phone || "N/A",
-    zone: profile.zone_code || "UNASSIGNED",
-    role: [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & "),
-    emergency_contacts: [
-      { name: profile.emergency_contact_1, phone: profile.emergency_phone_1 },
-      { name: profile.emergency_contact_2, phone: profile.emergency_phone_2 }
-    ].filter(c => c.name && c.phone),
-    stay_address: profile.home_address || "N/A",
-    verified_at: new Date().toISOString()
-  };
+  const roles = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ") || "User";
+  const em1 = profile.emergency_contact_1 ? `${profile.emergency_contact_1} (${profile.emergency_phone_1 || 'N/A'})` : "None";
+  const em2 = profile.emergency_contact_2 ? `${profile.emergency_contact_2} (${profile.emergency_phone_2 || 'N/A'})` : "None";
 
-  return JSON.stringify(payload, null, 2);
+  return `TOURIST SAFETY DIGITAL ID
+---------------------------
+Name: ${profile.name || 'N/A'}
+Role: ${roles}
+Zone: ${profile.zone_code || 'UNASSIGNED'}
+Phone: ${profile.phone || 'N/A'}
+Blood Group: ${profile.blood_group || 'N/A'}
+Age / Gender: ${profile.age || 'N/A'} / ${profile.gender || 'N/A'}
+Primary ICE Contact: ${em1}
+Secondary ICE Contact: ${em2}
+Stay Address: ${profile.home_address || 'N/A'}
+Verified ID: ${profile.id || 'N/A'}`;
 }
 
-function renderQRCodeInElement(elementId, text, size = 160) {
+function renderQRCodeInElement(elementId, text, size = 180) {
   const container = document.getElementById(elementId);
   if (!container) return;
   container.innerHTML = "";
+
   if (typeof QRCode !== "undefined") {
     new QRCode(container, {
       text: text,
@@ -174,8 +199,10 @@ function renderQRCodeInElement(elementId, text, size = 160) {
       height: size,
       colorDark: "#000000",
       colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.M
+      correctLevel: QRCode.CorrectLevel.L
     });
+  } else {
+    container.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}" width="${size}" height="${size}" alt="Digital ID QR" style="display:block; border-radius:8px;">`;
   }
 }
 
@@ -355,7 +382,7 @@ async function getLiveCommandHQData(zoneCode) {
 }
 
 // ==========================================
-// 5. SYNTHESIZED EMERGENCY SIREN
+// 5. EMERGENCY SIREN SYNTHESIZER
 // ==========================================
 class SirenSynthesizer {
   constructor() {
@@ -433,7 +460,7 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 6. DISTANCE & MAP HELPERS
+// 6. DISTANCE & ROUTE HELPERS
 // ==========================================
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined || lat1 === null || lon1 === null || lat2 === null || lon2 === null) return 0;
@@ -851,7 +878,6 @@ async function updateUserStateView() {
   if (roleEl) roleEl.innerText = userRoles || "User";
   if (zoneBadge) zoneBadge.innerText = profile.zone_code || "UNASSIGNED";
 
-  // Update Digital Safety ID Card & Selfie Photo
   const idNameEl = document.getElementById("digitalIdName");
   const idRoleEl = document.getElementById("digitalIdRole");
   const idPhoneEl = document.getElementById("idPhone");
@@ -868,7 +894,6 @@ async function updateUserStateView() {
   if (idAddressEl) idAddressEl.innerText = profile.home_address || 'N/A';
   if (passportPhoto) passportPhoto.src = profile.photo_url || DEFAULT_AVATAR;
 
-  // Render Real Dynamic QR Code
   const qrString = formatProfileDataForQR(profile);
   renderQRCodeInElement("userPersonalQRCode", qrString, 140);
 
@@ -1004,13 +1029,20 @@ window.openEditOwnProfileModal = async function() {
   document.getElementById("editIsVolunteer").checked = profile.is_volunteer === true;
   
   const editPreview = document.getElementById("editSelfiePreview");
+  const editPlaceholder = document.getElementById("editCameraPlaceholder");
   const editHiddenData = document.getElementById("editCapturedSelfieData");
-  if (editPreview) {
-    editPreview.src = profile.photo_url || DEFAULT_AVATAR;
-    editPreview.style.display = "block";
-  }
-  if (editHiddenData) {
-    editHiddenData.value = profile.photo_url || "";
+
+  if (profile.photo_url) {
+    if (editPreview) {
+      editPreview.src = profile.photo_url;
+      editPreview.style.display = "block";
+    }
+    if (editPlaceholder) editPlaceholder.style.display = "none";
+    if (editHiddenData) editHiddenData.value = profile.photo_url;
+  } else {
+    if (editPreview) editPreview.style.display = "none";
+    if (editPlaceholder) editPlaceholder.style.display = "flex";
+    if (editHiddenData) editHiddenData.value = "";
   }
 
   const overlay = document.getElementById("modalOverlay");
@@ -1020,7 +1052,7 @@ window.openEditOwnProfileModal = async function() {
 };
 
 // ==========================================
-// 11. WEBSITE HEAD MASTER OVERVIEW MATRIX
+// 11. MASTER OVERVIEW MATRIX
 // ==========================================
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
@@ -2192,7 +2224,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. User Registration (Includes Live Selfie Snapshot)
+  // 5. User Registration (With Real Selfie Check)
   const regForm = document.getElementById("registrationForm");
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
@@ -2200,7 +2232,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const selfiePhoto = document.getElementById("capturedSelfieData")?.value;
       if (!selfiePhoto) {
-        alert("Please open the camera and take a live selfie before completing registration.");
+        alert("Please take a live selfie using '📷 Open Live Camera' or '📱 Tap to Open Camera' before proceeding.");
         return;
       }
 
@@ -2353,7 +2385,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Continuous polling
   setInterval(checkVolunteerDistressSignals, 2500);
   setInterval(checkVictimAidStatus, 2000);
   setInterval(checkTouristGeofenceBoundary, 10000);
