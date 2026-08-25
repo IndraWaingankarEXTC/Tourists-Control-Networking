@@ -2050,3 +2050,31 @@ window.addEventListener("DOMContentLoaded", () => {
   setInterval(checkVictimAidStatus, 2000);
   setInterval(checkTouristGeofenceBoundary, 10000);
 });
+// ==========================================
+// EMERGENCY CONTACT NOTIFIER HELPER
+// ==========================================
+window.notifyVictimEmergencyContact = function(contactName, contactPhone, victimName, zoneCode, lat, lon) {
+  if (!contactPhone || contactPhone === 'N/A') {
+    alert("No phone number registered for this emergency contact.");
+    return;
+  }
+
+  // Clean phone number (removes spaces, hyphens, and parentheses)
+  const cleanPhone = contactPhone.replace(/[^\d+]/g, '');
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+  
+  // Standard formatted distress dispatch message
+  const alertMessage = `🚨 *EMERGENCY DISTRESS ALERT - ${zoneCode} COMMAND CENTER* 🚨\n\n` +
+    `Dear ${contactName},\n` +
+    `Your contact *${victimName}* has triggered an active SOS distress alert in *${zoneCode}* zone.\n\n` +
+    `📍 *Live Location:* ${mapsUrl}\n` +
+    `⏰ *Time:* ${new Date().toLocaleTimeString()}\n\n` +
+    `The Local Command Center and search & rescue teams have been dispatched. Please stand by or call the local response authority.`;
+
+  const encodedMessage = encodeURIComponent(alertMessage);
+  
+  // Open WhatsApp with pre-filled message
+  const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
+  
+  window.open(whatsappUrl, '_blank');
+};
