@@ -65,7 +65,6 @@ async function requestScreenWakeLock() {
   }
 }
 
-// Push live telemetry to Supabase instantly (Dual Update to Profiles & Locations)
 async function broadcastLocationTelemetry(lat, lon, accuracy) {
   verifiedGpsCoords = { latitude: lat, longitude: lon };
   verifiedGpsAccuracy = accuracy || 5;
@@ -74,7 +73,6 @@ async function broadcastLocationTelemetry(lat, lon, accuracy) {
   const isStaffActive = sessionStorage.getItem("staffAuthenticated") === "true";
   const staffZone = sessionStorage.getItem("staffZoneCode");
 
-  // Dual write for instantaneous table & telemetry reading
   if (userId) {
     await Promise.all([
       supabase.from("profiles").update({
@@ -114,7 +112,6 @@ function startHighPrecisionGpsWatcher() {
     navigator.geolocation.clearWatch(gpsWatchId);
   }
 
-  // Fast-Fix 1: Instant cached network A-GPS
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       broadcastLocationTelemetry(Number(pos.coords.latitude), Number(pos.coords.longitude), Math.round(pos.coords.accuracy));
@@ -123,7 +120,6 @@ function startHighPrecisionGpsWatcher() {
     { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
   );
 
-  // Fast-Fix 2: Continuous real-time satellite stream
   gpsWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       const lat = Number(pos.coords.latitude);
@@ -182,24 +178,89 @@ async function getLiveGpsCoordinates() {
   });
 }
 
-async function getLiveCommandHQCoords(zoneCode) {
-  if (!zoneCode) return await getLiveGpsCoordinates();
+// Fetch HQ Coordinates along with Helpline Phone Number
+async function getLiveCommandHQData(zoneCode) {
+  const fallback = await getLiveGpsCoordinates();
+  if (!zoneCode) return { latitude: fallback.latitude, longitude: fallback.longitude, phone: 'N/A' };
 
-  const { data } = await supabase
-    .from("command_center_location")
-    .select("latitude, longitude")
-    .eq("id", `HQ_${zoneCode}`)
-    .maybeSingle();
+  const [hqRes, zoneRes] = await Promise.all([
+    supabase.from("command_center_location").select("latitude, longitude, contact_phone").eq("id", `HQ_${zoneCode}`).maybeSingle(),
+    supabase.from("destination_zones").select("contact_phone").eq("zone_code", zoneCode).maybeSingle()
+  ]);
 
-  if (data && data.latitude && data.longitude) {
-    return { latitude: Number(data.latitude), longitude: Number(data.longitude) };
-  }
-  return await getLiveGpsCoordinates();
+  const phone = hqRes.data?.contact_phone || zoneRes.data?.contact_phone || "Command Helpline";
+  const latitude = hqRes.data?.latitude ? Number(hqRes.data.latitude) : fallback.latitude;
+  const longitude = hqRes.data?.longitude ? Number(hqRes.data.longitude) : fallback.longitude;
+
+  return { latitude, longitude, phone };
 }
 
 // ==========================================
-// 3. SYNTHESIZED EMERGENCY SIREN & CHIME
+// 3. DISTANCE, BEARING & MAP UTILITIES
 // ==========================================
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined || lat1 === null || lon1 === null || lat2 === null || lon2 === null) return 0;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const y = Math.sin(dLon) * Math.cos(lat2 * (Math.PI / 180));
+  const x =
+    Math.cos(lat1 * (Math.PI / 180)) * Math.sin(lat2 * (Math.PI / 180)) -
+    Math.sin(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.cos(dLon);
+  let brng = Math.atan2(y, x) * (180 / Math.PI);
+  return (brng + 360) % 360;
+}
+
+function calculateRouteAndETA(straightDistanceKm) {
+  const roadDistance = straightDistanceKm * 1.35;
+  const avgSpeedKmh = 40.0;
+  const timeInMinutes = Math.ceil((roadDistance / avgSpeedKmh) * 60);
+
+  let etaText = "";
+  if (straightDistanceKm < 0.05) {
+    etaText = "Arrived (Same Spot)";
+  } else if (timeInMinutes < 60) {
+    etaText = `~${timeInMinutes} min driving`;
+  } else {
+    const hrs = Math.floor(timeInMinutes / 60);
+    const mins = timeInMinutes % 60;
+    etaText = `~${hrs} hr ${mins} min driving`;
+  }
+
+  return { roadDistanceKm: roadDistance, etaText: etaText };
+}
+
+function formatDistance(distKm) {
+  if (distKm < 0.02) return "0 m (Same Spot)";
+  if (distKm < 1.0) return `${Math.round(distKm * 1000)} m`;
+  return `${distKm.toFixed(2)} km`;
+}
+
+function getGoogleMapsRouteUrl(originLat, originLon, destLat, destLon) {
+  return `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${destLat},${destLon}&travelmode=driving`;
+}
+
+function createLeafletCustomPin(type, title) {
+  return L.divIcon({
+    className: 'custom-map-pin',
+    html: `<div class="pin-inner pin-${type}" title="${title}"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
+  });
+}
+
+// Siren Synthesizer
 class SirenSynthesizer {
   constructor() {
     this.audioCtx = null;
@@ -276,94 +337,8 @@ class SirenSynthesizer {
 const siren = new SirenSynthesizer();
 
 // ==========================================
-// 4. DISTANCE, BEARING & MAP UTILITIES
+// 4. GEOFENCE BOUNDARY & CHECK-IN
 // ==========================================
-function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined || lat1 === null || lon1 === null || lat2 === null || lon2 === null) return 0;
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function calculateBearing(lat1, lon1, lat2, lon2) {
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const y = Math.sin(dLon) * Math.cos(lat2 * (Math.PI / 180));
-  const x =
-    Math.cos(lat1 * (Math.PI / 180)) * Math.sin(lat2 * (Math.PI / 180)) -
-    Math.sin(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.cos(dLon);
-  let brng = Math.atan2(y, x) * (180 / Math.PI);
-  return (brng + 360) % 360;
-}
-
-function calculateRouteAndETA(straightDistanceKm) {
-  const roadDistance = straightDistanceKm * 1.35;
-  const avgSpeedKmh = 40.0;
-  const timeInMinutes = Math.ceil((roadDistance / avgSpeedKmh) * 60);
-
-  let etaText = "";
-  if (straightDistanceKm < 0.05) {
-    etaText = "Arrived (Same Spot)";
-  } else if (timeInMinutes < 60) {
-    etaText = `~${timeInMinutes} min driving`;
-  } else {
-    const hrs = Math.floor(timeInMinutes / 60);
-    const mins = timeInMinutes % 60;
-    etaText = `~${hrs} hr ${mins} min driving`;
-  }
-
-  return { roadDistanceKm: roadDistance, etaText: etaText };
-}
-
-function formatDistance(distKm) {
-  if (distKm < 0.02) return "0 m (Same Spot)";
-  if (distKm < 1.0) return `${Math.round(distKm * 1000)} m`;
-  return `${distKm.toFixed(2)} km`;
-}
-
-function getGoogleMapsRouteUrl(originLat, originLon, destLat, destLon) {
-  return `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${destLat},${destLon}&travelmode=driving`;
-}
-
-function createLeafletCustomPin(type, title) {
-  return L.divIcon({
-    className: 'custom-map-pin',
-    html: `<div class="pin-inner pin-${type}" title="${title}"></div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11]
-  });
-}
-
-// ==========================================
-// 5. GEOFENCE BOUNDARY & INSTANT CHECK-IN
-// ==========================================
-async function fetchNearbyAIContext(lat, lon) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const query = `[out:json][timeout:2];(node(around:65,${lat},${lon})["amenity"~"restaurant|cafe|fast_food|bar|food_court"];node(around:65,${lat},${lon})["tourism"~"attraction|viewpoint|museum|hotel|artwork"];);out body 2;`;
-    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    const data = await res.json();
-
-    if (data && data.elements && data.elements.length > 0) {
-      const el = data.elements[0];
-      const name = el.tags.name || el.tags.amenity || el.tags.tourism || "a local attraction";
-      const type = el.tags.amenity ? "eatery / café" : "viewpoint / attraction";
-      return { found: true, name: name, type: type };
-    }
-  } catch (err) {
-    console.warn("AI context note:", err.message);
-  }
-  return { found: false };
-}
-
 async function checkTouristGeofenceBoundary() {
   const userId = localStorage.getItem("touristSafetyUserId");
   if (!userId || isEmergencyActive) return;
@@ -461,14 +436,12 @@ function renderTouristOverviewMap(myCoords, geofence) {
   touristOverviewMapInstance.invalidateSize();
 }
 
-// Opens the modal instantly and performs POI analysis in background
 function triggerGeofenceSafetyCheckin(lat, lon, zoneCode) {
   const modal = document.getElementById("safetyCheckinModal");
   const contextText = document.getElementById("checkinContextText");
   const countdownEl = document.getElementById("checkinCountdown");
   if (!modal || modal.style.display === "flex") return;
 
-  // 1. Open modal immediately
   modal.style.display = "flex";
   lastGeofenceCheckinTime = Date.now();
   siren.playWarningBeep();
@@ -477,7 +450,6 @@ function triggerGeofenceSafetyCheckin(lat, lon, zoneCode) {
     contextText.innerHTML = `You have moved outside the certified <strong>${zoneCode}</strong> safe tourist perimeter.<br>Are you okay, or do you need emergency assistance?`;
   }
 
-  // 2. Start 60s countdown immediately
   let secondsLeft = 60;
   if (countdownEl) countdownEl.innerText = `${secondsLeft}s`;
 
@@ -488,16 +460,9 @@ function triggerGeofenceSafetyCheckin(lat, lon, zoneCode) {
 
     if (secondsLeft <= 0) {
       clearInterval(checkinCountdownInterval);
-      window.dismissSafetyCheckin(false); // Auto-Escalate to LIVE SOS
+      window.dismissSafetyCheckin(false);
     }
   }, 1000);
-
-  // 3. Asynchronously load landmark context without blocking
-  fetchNearbyAIContext(lat, lon).then(poi => {
-    if (poi.found && contextText) {
-      contextText.innerHTML = `You are outside the <strong>${zoneCode}</strong> safe zone near <strong>${poi.name}</strong> (${poi.type}).<br>Are you chilling or do you need assistance?`;
-    }
-  });
 }
 
 window.dismissSafetyCheckin = async function(isSafe) {
@@ -516,732 +481,7 @@ window.dismissSafetyCheckin = async function(isSafe) {
 };
 
 // ==========================================
-// 6. STAFF GEOFENCE EDITOR
-// ==========================================
-window.initStaffGeofenceEditor = async function() {
-  const currentZone = sessionStorage.getItem("staffZoneCode");
-  if (!currentZone) return;
-
-  const { data: zoneRecord } = await supabase
-    .from("destination_zones")
-    .select("geofence_lat, geofence_lon, geofence_radius_km")
-    .eq("zone_code", currentZone)
-    .maybeSingle();
-
-  const currentGps = await getLiveGpsCoordinates();
-
-  const centerLat = zoneRecord?.geofence_lat || currentGps.latitude;
-  const centerLon = zoneRecord?.geofence_lon || currentGps.longitude;
-  const radiusKm = zoneRecord?.geofence_radius_km || 2.5;
-
-  activeZoneGeofence = { latitude: centerLat, longitude: centerLon, radiusKm: radiusKm };
-
-  const slider = document.getElementById("geofenceRadiusSlider");
-  const badge = document.getElementById("currentRadiusBadge");
-  if (slider) slider.value = radiusKm;
-  if (badge) badge.innerText = `Radius: ${radiusKm} km`;
-
-  const mapContainer = document.getElementById("staffGeofenceEditorMap");
-  if (!mapContainer) return;
-
-  if (!staffGeofenceMapInstance) {
-    staffGeofenceMapInstance = L.map('staffGeofenceEditorMap', { zoomControl: true, scrollWheelZoom: true, dragging: true })
-      .setView([centerLat, centerLon], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(staffGeofenceMapInstance);
-
-    staffGeofenceMapInstance.on('click', (e) => {
-      activeZoneGeofence.latitude = e.latlng.lat;
-      activeZoneGeofence.longitude = e.latlng.lng;
-      window.renderStaffGeofenceCircle();
-    });
-  }
-
-  window.renderStaffGeofenceCircle();
-};
-
-window.renderStaffGeofenceCircle = function() {
-  if (!staffGeofenceMapInstance) return;
-
-  const pos = [activeZoneGeofence.latitude, activeZoneGeofence.longitude];
-
-  if (!staffGeofenceCenterMarker) {
-    staffGeofenceCenterMarker = L.marker(pos, {
-      icon: createLeafletCustomPin('command', 'Safe Zone Center')
-    }).addTo(staffGeofenceMapInstance).bindPopup("🟢 <b>Safe Zone Center</b>");
-  } else {
-    staffGeofenceCenterMarker.setLatLng(pos);
-  }
-
-  if (!staffGeofenceCircle) {
-    staffGeofenceCircle = L.circle(pos, {
-      radius: activeZoneGeofence.radiusKm * 1000,
-      color: '#10b981',
-      fillColor: '#34d399',
-      fillOpacity: 0.22,
-      weight: 2
-    }).addTo(staffGeofenceMapInstance);
-  } else {
-    staffGeofenceCircle.setLatLng(pos);
-    staffGeofenceCircle.setRadius(activeZoneGeofence.radiusKm * 1000);
-  }
-
-  staffGeofenceMapInstance.invalidateSize();
-};
-
-window.updateGeofenceRadiusFromSlider = function(val) {
-  const radius = parseFloat(val);
-  activeZoneGeofence.radiusKm = radius;
-  const badge = document.getElementById("currentRadiusBadge");
-  if (badge) badge.innerText = `Radius: ${radius} km`;
-  window.renderStaffGeofenceCircle();
-};
-
-window.saveGeofenceConfiguration = async function() {
-  const currentZone = sessionStorage.getItem("staffZoneCode");
-  if (!currentZone) return;
-
-  const { error } = await supabase
-    .from("destination_zones")
-    .update({
-      geofence_lat: activeZoneGeofence.latitude,
-      geofence_lon: activeZoneGeofence.longitude,
-      geofence_radius_km: activeZoneGeofence.radiusKm
-    })
-    .eq("zone_code", currentZone);
-
-  if (error) {
-    alert(`Failed to save geofence: ${error.message}`);
-  } else {
-    alert(`✓ Safe Tourist Boundary for '${currentZone}' updated successfully! (${activeZoneGeofence.radiusKm} km radius)`);
-  }
-};
-
-// ==========================================
-// 7. PORTAL VIEW CONTROLLER
-// ==========================================
-window.switchPortal = function(portalId) {
-  ['portalGateway', 'userPortal', 'staffPortal', 'superAdminPortal'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = (id === portalId) ? 'block' : 'none';
-  });
-  window.closeModal();
-};
-
-window.enterUserMode = function() {
-  window.switchPortal('userPortal');
-  updateUserStateView();
-  checkVolunteerDistressSignals();
-  checkVictimAidStatus();
-  checkTouristGeofenceBoundary();
-};
-
-async function updateUserStateView() {
-  const userId = localStorage.getItem("touristSafetyUserId");
-  const loggedOutSec = document.getElementById("loggedOutSection");
-  const loggedInSec = document.getElementById("loggedInSection");
-  const nameEl = document.getElementById("activeUserName");
-  const roleEl = document.getElementById("activeUserRole");
-  const zoneBadge = document.getElementById("activeUserZoneCodeBadge");
-
-  if (!userId) {
-    if (loggedOutSec) loggedOutSec.style.display = "block";
-    if (loggedInSec) loggedInSec.style.display = "none";
-    return;
-  }
-
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-
-  if (!profile) {
-    localStorage.removeItem("touristSafetyUserId");
-    if (loggedOutSec) loggedOutSec.style.display = "block";
-    if (loggedInSec) loggedInSec.style.display = "none";
-    return;
-  }
-
-  if (loggedOutSec) loggedOutSec.style.display = "none";
-  if (loggedInSec) loggedInSec.style.display = "block";
-
-  if (nameEl) nameEl.innerText = profile.name;
-  if (roleEl) roleEl.innerText = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-  if (zoneBadge) zoneBadge.innerText = profile.zone_code || "UNASSIGNED";
-
-  const { data: activeSOS } = await supabase.from("sos_events").select("*").eq("user_id", userId).eq("status", "ACTIVE");
-  const label = document.getElementById("sosLabel");
-  if (activeSOS && activeSOS.length > 0) {
-    isEmergencyActive = true;
-    if (label) label.innerText = "CANCEL SOS (ACTIVE)";
-    triggerVisualAlarm(true);
-  } else {
-    isEmergencyActive = false;
-    if (label) label.innerText = "SEND LIVE SOS";
-    triggerVisualAlarm(false);
-  }
-}
-
-window.signOutCurrentUser = function() {
-  localStorage.removeItem("touristSafetyUserId");
-  dismissedVolunteerSOS.clear();
-  window.closeCompassView();
-  updateUserStateView();
-  alert("Signed out successfully.");
-};
-
-window.openStaffModal = function() {
-  window.closeModal();
-  const overlay = document.getElementById("modalOverlay");
-  const authModal = document.getElementById("staffPasscodeModal");
-  if (overlay) overlay.style.display = "flex";
-  if (authModal) authModal.style.display = "block";
-};
-
-window.openSuperAdminModal = function() {
-  window.closeModal();
-  const overlay = document.getElementById("modalOverlay");
-  const superModal = document.getElementById("superAdminAuthModal");
-  if (overlay) overlay.style.display = "flex";
-  if (superModal) superModal.style.display = "block";
-};
-
-window.openCreateZoneModal = function() {
-  window.closeModal();
-  const overlay = document.getElementById("modalOverlay");
-  const createModal = document.getElementById("createZoneModal");
-  if (overlay) overlay.style.display = "flex";
-  if (createModal) createModal.style.display = "block";
-};
-
-window.openSignInModal = function() {
-  window.closeModal();
-  const overlay = document.getElementById("modalOverlay");
-  const signInModal = document.getElementById("userSignInModal");
-  if (overlay) overlay.style.display = "flex";
-  if (signInModal) signInModal.style.display = "block";
-};
-
-window.openRegistration = function(role) {
-  selectedRole = role;
-  window.closeModal();
-
-  const overlay = document.getElementById("modalOverlay");
-  const reg = document.getElementById("registrationPage");
-  const title = document.getElementById("registrationTitle");
-  const extraText = document.getElementById("additionalRoleText");
-
-  if (overlay) overlay.style.display = "flex";
-  if (reg) reg.style.display = "block";
-
-  if (role === "tourist") {
-    if (title) title.innerText = "Tourist Registration";
-    if (extraText) extraText.innerText = "Yes, I also want to register as a volunteer responder.";
-  } else {
-    if (title) title.innerText = "Volunteer Registration";
-    if (extraText) extraText.innerText = "Yes, I also want to register as a protected tourist.";
-  }
-};
-
-window.closeModal = function() {
-  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal', 'editProfileModal'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = "none";
-  });
-};
-
-window.exitStaffPortal = function() {
-  sessionStorage.removeItem("staffAuthenticated");
-  sessionStorage.removeItem("staffZoneCode");
-  window.switchPortal("portalGateway");
-};
-
-window.exitSuperAdminPortal = function() {
-  sessionStorage.removeItem("superAdminAuthenticated");
-  window.switchPortal("portalGateway");
-};
-
-// ==========================================
-// 8. STRICTLY INDIVIDUAL-OWNED PROFILE EDIT
-// ==========================================
-window.openEditOwnProfileModal = async function() {
-  const userId = localStorage.getItem("touristSafetyUserId");
-  if (!userId) {
-    alert("Please sign in first to edit your profile.");
-    return;
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !profile) {
-    alert("Could not retrieve your profile record.");
-    return;
-  }
-
-  window.closeModal();
-
-  document.getElementById("editProfileId").value = profile.id;
-  document.getElementById("editZoneCode").value = profile.zone_code || "";
-  document.getElementById("editName").value = profile.name || "";
-  document.getElementById("editAge").value = profile.age || "";
-  document.getElementById("editGender").value = profile.gender || "Male";
-  document.getElementById("editBloodGroup").value = profile.blood_group || "O+";
-  document.getElementById("editPhone").value = profile.phone || "";
-  document.getElementById("editEmergency1").value = profile.emergency_contact_1 || "";
-  document.getElementById("editEmergencyPhone1").value = profile.emergency_phone_1 || "";
-  document.getElementById("editEmergency2").value = profile.emergency_contact_2 || "";
-  document.getElementById("editEmergencyPhone2").value = profile.emergency_phone_2 || "";
-  document.getElementById("editHomeAddress").value = profile.home_address || "";
-  document.getElementById("editIsTourist").checked = profile.is_tourist === true;
-  document.getElementById("editIsVolunteer").checked = profile.is_volunteer === true;
-
-  const overlay = document.getElementById("modalOverlay");
-  const editModal = document.getElementById("editProfileModal");
-  if (overlay) overlay.style.display = "flex";
-  if (editModal) editModal.style.display = "block";
-};
-
-// ==========================================
-// 9. WEBSITE HEAD MASTER OVERVIEW MATRIX
-// ==========================================
-window.loadSuperAdminMatrix = async function() {
-  const tableBody = document.getElementById("superAdminTableBody");
-  const zonesCardsEl = document.getElementById("saZonesCardsContainer");
-  if (!tableBody) return;
-
-  try {
-    const [zonesRes, profilesRes, sosRes, locsRes, hqRes] = await Promise.all([
-      supabase.from("destination_zones").select("*").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("sos_events").select("*").eq("status", "ACTIVE"),
-      supabase.from("locations").select("*").order("created_at", { ascending: false }),
-      supabase.from("command_center_location").select("*")
-    ]);
-
-    const zones = zonesRes.data || [];
-    const profiles = profilesRes.data || [];
-    const activeSOSEvents = sosRes.data || [];
-    const locations = locsRes.data || [];
-    const hqUnits = hqRes.data || [];
-
-    const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
-
-    // Latest location mapping
-    const userLocationMap = {};
-    locations.forEach(loc => {
-      if (!userLocationMap[String(loc.user_id)]) {
-        userLocationMap[String(loc.user_id)] = {
-          latitude: Number(loc.latitude),
-          longitude: Number(loc.longitude)
-        };
-      }
-    });
-
-    document.getElementById("saZonesCount").innerText = zones.length;
-    document.getElementById("saStaffCount").innerText = hqUnits.length;
-    document.getElementById("saTouristsCount").innerText = profiles.filter(p => p.is_tourist).length;
-    document.getElementById("saSOSCount").innerText = activeSOSUserIds.size;
-    document.getElementById("saZoneListBadge").innerText = `${zones.length} Destination Zones Active`;
-
-    if (zonesCardsEl) {
-      if (zones.length === 0) {
-        zonesCardsEl.innerHTML = `<em style="opacity: 0.7;">No custom zones created yet.</em>`;
-      } else {
-        zonesCardsEl.innerHTML = zones.map(z => `
-          <div class="zone-summary-card">
-            <strong>📍 ${z.zone_code}</strong>
-            <small>${z.zone_name}</small>
-            <div style="margin-top: 6px; font-size: 11px; font-family: monospace; color: #a7f3d0;">
-              Passcode: <b>${z.passcode}</b> • Radius: <b>${z.geofence_radius_km || 2.5}km</b>
-            </div>
-          </div>
-        `).join("");
-      }
-    }
-
-    if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
-      return;
-    }
-
-    tableBody.innerHTML = profiles.map(p => {
-      const isCriticalSOS = activeSOSUserIds.has(String(p.id));
-      const loc = userLocationMap[String(p.id)] || { latitude: p.latitude, longitude: p.longitude };
-      const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : "Live GPS Active";
-
-      let rowClass = isCriticalSOS ? "row-sos-red" : "row-normal";
-      let statusTag = isCriticalSOS ? `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>` : `<span class="status-tag tag-green">Normal</span>`;
-      const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-
-      return `
-        <tr class="${rowClass}">
-          <td><strong style="color: #ffd000;">${p.zone_code || 'UNASSIGNED'}</strong></td>
-          <td>${statusTag}</td>
-          <td><strong>${p.name || 'Anonymous'}</strong></td>
-          <td>${roleBadge || 'User'}</td>
-          <td>${p.phone || 'N/A'}</td>
-          <td>${p.blood_group || 'N/A'}</td>
-          <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
-          <td>${p.home_address || 'N/A'}</td>
-          <td class="coord-cell">${coordsDisplay}</td>
-        </tr>
-      `;
-    }).join("");
-
-  } catch (err) {
-    console.error("Super Admin Load Error:", err);
-  }
-};
-
-// ==========================================
-// 10. STAFF COMMAND MATRIX (ZONE ISOLATED)
-// ==========================================
-window.loadStaffMonitoringData = async function() {
-  const tableBody = document.getElementById("staffTableBody");
-  if (!tableBody) return;
-
-  const currentZone = sessionStorage.getItem("staffZoneCode");
-  if (!currentZone) return;
-
-  const zoneHeader = document.getElementById("staffZoneDisplayHeader");
-  if (zoneHeader) zoneHeader.innerText = currentZone;
-
-  try {
-    const [profilesRes, sosRes, locsRes, missionsRes, cmdHQ] = await Promise.all([
-      supabase.from("profiles").select("*").eq("zone_code", currentZone).order("created_at", { ascending: false }),
-      supabase.from("sos_events").select("*").eq("zone_code", currentZone).eq("status", "ACTIVE"),
-      supabase.from("locations").select("*").order("created_at", { ascending: false }),
-      supabase.from("rescue_missions").select("*").eq("zone_code", currentZone).eq("status", "EN_ROUTE"),
-      getLiveCommandHQCoords(currentZone)
-    ]);
-
-    const profiles = profilesRes.data || [];
-    const activeSOSEvents = sosRes.data || [];
-    const locations = locsRes.data || [];
-    const activeMissions = missionsRes.data || [];
-
-    const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
-
-    const profileMap = {};
-    profiles.forEach(p => { profileMap[String(p.id)] = p; });
-
-    const userLocationMap = {};
-    locations.forEach(loc => {
-      if (!userLocationMap[String(loc.user_id)]) {
-        userLocationMap[String(loc.user_id)] = {
-          latitude: Number(loc.latitude),
-          longitude: Number(loc.longitude)
-        };
-      }
-    });
-
-    document.getElementById("mTotal").innerText = profiles.length;
-    document.getElementById("mTourists").innerText = profiles.filter(p => p.is_tourist).length;
-    document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
-    document.getElementById("mSOS").innerText = activeSOSUserIds.size;
-
-    // 1. Dispatch Queue
-    const dispatchQueueEl = document.getElementById("commandDispatchQueue");
-    const unhandledDistressSignals = activeSOSEvents.filter(sos => {
-      const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
-      const alreadyDeployed = activeMissions.some(m => m.responder_type === 'COMMAND_CENTER' && String(m.target_user_id) === String(sos.user_id));
-      return !alreadyHandled && !alreadyDeployed;
-    });
-
-    if (unhandledDistressSignals.length > 0 && dispatchQueueEl) {
-      dispatchQueueEl.style.display = "flex";
-      dispatchQueueEl.innerHTML = unhandledDistressSignals.map(sos => {
-        const victim = profileMap[String(sos.user_id)];
-        const victimName = victim ? victim.name : "Person in Distress";
-        return `
-          <div class="command-action-box">
-            <div class="dispatch-header">
-              <span class="hud-pulse"></span>
-              <strong>CRITICAL ALERT (${currentZone}): ${victimName}</strong>
-            </div>
-            <p>Deploy ${currentZone} Central Command emergency team to assist ${victimName}?</p>
-            <div class="dispatch-actions">
-              <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}', '${currentZone}')">✓ YES, DEPLOY COMMAND UNIT</button>
-              <button class="command-btn btn-no" onclick="dismissSpecificCommandPrompt('${sos.id}')">✕ STAND BY</button>
-            </div>
-          </div>
-        `;
-      }).join("");
-    } else if (dispatchQueueEl) {
-      dispatchQueueEl.style.display = "none";
-    }
-
-    // 2. Zone Roster Table
-    if (profiles.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
-    } else {
-      tableBody.innerHTML = profiles.map(p => {
-        const isCriticalSOS = activeSOSUserIds.has(String(p.id));
-        const loc = userLocationMap[String(p.id)] || { latitude: p.latitude, longitude: p.longitude };
-        let isNearbyResponder = false;
-
-        if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0 && loc.latitude && loc.longitude) {
-          activeSOSEvents.forEach(sos => {
-            const dist = calculateDistanceKm(loc.latitude, loc.longitude, Number(sos.latitude), Number(sos.longitude));
-            if (dist <= 25.0) isNearbyResponder = true;
-          });
-        }
-
-        let rowClass = "row-normal";
-        let statusTag = `<span class="status-tag tag-green">Normal</span>`;
-
-        if (isCriticalSOS) {
-          rowClass = "row-sos-red";
-          statusTag = `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>`;
-        } else if (isNearbyResponder) {
-          rowClass = "row-responder-yellow";
-          statusTag = `<span class="status-tag tag-yellow">⚡ RESPONDER IN RANGE</span>`;
-        }
-
-        const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
-        const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : `Live GPS Active`;
-
-        return `
-          <tr class="${rowClass}">
-            <td>${statusTag}</td>
-            <td><strong>${p.name || 'Anonymous'}</strong></td>
-            <td>${roleBadge || 'User'}</td>
-            <td>${p.phone || 'N/A'}</td>
-            <td>${p.blood_group || 'N/A'}</td>
-            <td>${p.emergency_contact_1 || 'N/A'} (${p.emergency_phone_1 || 'N/A'})</td>
-            <td>${p.home_address || 'N/A'}</td>
-            <td class="coord-cell">${coordsDisplay}</td>
-          </tr>
-        `;
-      }).join("");
-    }
-
-    // 3. Multi-Case Live Maps
-    const respondersPanel = document.getElementById("respondersList");
-    const responderBadge = document.getElementById("responderCountBadge");
-    const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
-
-    if (activeMissions.length > 0) {
-      const commandUnits = activeMissions.filter(m => m.responder_type === 'COMMAND_CENTER');
-      const volunteerUnits = activeMissions.filter(m => m.responder_type === 'VOLUNTEER');
-
-      responderBadge.innerText = `${commandUnits.length} Command • ${volunteerUnits.length} Volunteer(s) Active`;
-      if (multiRadarGrid) multiRadarGrid.style.display = "grid";
-
-      const victimMissionsMap = {};
-      activeMissions.forEach(m => {
-        const vicId = String(m.target_user_id);
-        if (!victimMissionsMap[vicId]) victimMissionsMap[vicId] = [];
-        victimMissionsMap[vicId].push(m);
-      });
-
-      const activeCaseIds = Object.keys(victimMissionsMap);
-
-      Object.keys(staffMapInstances).forEach(id => {
-        if (!activeCaseIds.includes(id)) {
-          staffMapInstances[id].remove();
-          delete staffMapInstances[id];
-          delete staffMarkers[id];
-        }
-      });
-
-      activeCaseIds.forEach((vicId, index) => {
-        const mapContainerId = `staffCaseMap_${vicId}`;
-        let card = document.getElementById(`cardWrapper_${vicId}`);
-        const vic = profileMap[vicId] || { name: 'Person in Distress' };
-
-        if (!card) {
-          const cardHTML = `
-            <div id="cardWrapper_${vicId}" class="radar-card-unit">
-              <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name}</div>
-              <div id="${mapContainerId}" class="whatsapp-live-map-window" style="height:190px;"></div>
-              <div id="telemetry_${vicId}" class="radar-telemetry-text" style="line-height: 1.4; font-size: 11px;"></div>
-            </div>
-          `;
-          multiRadarGrid.insertAdjacentHTML('beforeend', cardHTML);
-        }
-
-        const missions = victimMissionsMap[vicId];
-        const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
-        const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
-        const vicLoc = userLocationMap[vicId] || { latitude: vic.latitude || cmdHQ.latitude, longitude: vic.longitude || cmdHQ.longitude };
-
-        let map = staffMapInstances[vicId];
-        if (!map) {
-          map = L.map(mapContainerId, { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLoc.latitude, vicLoc.longitude], 13);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-          staffMapInstances[vicId] = map;
-          staffMarkers[vicId] = {};
-        }
-
-        const currentMarkers = staffMarkers[vicId];
-
-        // Red Pin: Victim
-        if (!currentMarkers.victim) {
-          currentMarkers.victim = L.marker([vicLoc.latitude, vicLoc.longitude], {
-            icon: createLeafletCustomPin('victim', `Victim: ${vic.name}`)
-          }).addTo(map).bindPopup(`🎯 <b>${vic.name}</b> (In Distress)`);
-        } else {
-          currentMarkers.victim.setLatLng([vicLoc.latitude, vicLoc.longitude]);
-        }
-
-        // Blue Pin: Command HQ
-        let cmdDistanceText = "";
-        let cmdMapsUrl = "#";
-        if (hasCommand) {
-          const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
-
-          if (!currentMarkers.command) {
-            currentMarkers.command = L.marker(cmdPos, {
-              icon: createLeafletCustomPin('command', `${currentZone} Command Unit`)
-            }).addTo(map).bindPopup(`🔵 <b>${currentZone} Command Unit</b>`);
-          } else {
-            currentMarkers.command.setLatLng(cmdPos);
-          }
-
-          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, cmdPos[0], cmdPos[1]);
-          const cmdRoute = calculateRouteAndETA(distKm);
-          cmdDistanceText = `Command Unit: ${formatDistance(distKm)} • ${cmdRoute.etaText}`;
-          cmdMapsUrl = getGoogleMapsRouteUrl(cmdPos[0], cmdPos[1], vicLoc.latitude, vicLoc.longitude);
-        } else if (currentMarkers.command) {
-          map.removeLayer(currentMarkers.command);
-          delete currentMarkers.command;
-        }
-
-        // Yellow Pin: Volunteer
-        let volDistanceText = "";
-        let volMapsUrl = "#";
-        if (volunteerMissions.length > 0) {
-          const firstVol = volunteerMissions[0];
-          const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
-          const volPos = [volLoc.latitude, volLoc.longitude];
-          const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer" };
-
-          if (!currentMarkers.volunteer) {
-            currentMarkers.volunteer = L.marker(volPos, {
-              icon: createLeafletCustomPin('volunteer', `Volunteer: ${volProfile.name}`)
-            }).addTo(map).bindPopup(`🟡 <b>${volProfile.name}</b> (Volunteer)`);
-          } else {
-            currentMarkers.volunteer.setLatLng(volPos);
-          }
-
-          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
-          const routeInfo = calculateRouteAndETA(distKm);
-          volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(distKm)} • ${routeInfo.etaText}`;
-          volMapsUrl = getGoogleMapsRouteUrl(volLoc.latitude, volLoc.longitude, vicLoc.latitude, vicLoc.longitude);
-        } else if (currentMarkers.volunteer) {
-          map.removeLayer(currentMarkers.volunteer);
-          delete currentMarkers.volunteer;
-        }
-
-        const telemEl = document.getElementById(`telemetry_${vicId}`);
-        if (telemEl) {
-          telemEl.innerHTML = `
-            ${cmdDistanceText ? `<div style="color:#00d4ff;">🔵 ${cmdDistanceText}</div>` : ''}
-            ${volDistanceText ? `<div style="color:#ffd000;">🟡 ${volDistanceText}</div>` : ''}
-            <div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">
-              ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
-              ${volunteerMissions.length > 0 ? `<a href="${volMapsUrl}" target="_blank" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">🗺️ Volunteer Route</a>` : ''}
-            </div>
-          `;
-        }
-
-        map.invalidateSize();
-      });
-
-      respondersPanel.innerHTML = activeMissions.map(m => {
-        const vic = profileMap[String(m.target_user_id)] || { name: 'Tourist' };
-        if (m.responder_type === 'COMMAND_CENTER') {
-          return `
-            <div class="responder-item" style="border-color: #00d4ff;">
-              <strong style="color: #00d4ff;">🔵 ${currentZone} Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong></span>
-            </div>
-          `;
-        } else {
-          const vol = profileMap[String(m.volunteer_id)] || { name: 'Volunteer Unit', phone: 'Field' };
-          return `
-            <div class="responder-item" style="border-color: #ffd000;">
-              <strong style="color: #ffd000;">🟡 Volunteer: ${vol.name}</strong> (${vol.phone}) ➔ <span style="color:#ffffff;">EN ROUTE TO: <strong>${vic.name}</strong></span>
-            </div>
-          `;
-        }
-      }).join("");
-    } else {
-      responderBadge.innerText = `0 Responders En Route`;
-      if (multiRadarGrid) multiRadarGrid.style.display = "none";
-      respondersPanel.innerHTML = `<em>No active rescue missions underway in this zone. Standing by for alerts.</em>`;
-    }
-
-  } catch (err) {
-    console.error("Staff Data Load Error:", err);
-  }
-};
-
-window.dispatchSpecificFromCommandCenter = async function(sosId, targetUserId, zoneCode) {
-  dismissedCommandSOS.add(String(sosId));
-
-  const { error } = await supabase.from("rescue_missions").insert({
-    sos_id: String(sosId),
-    zone_code: zoneCode,
-    responder_type: 'COMMAND_CENTER',
-    target_user_id: String(targetUserId),
-    status: "EN_ROUTE"
-  });
-
-  if (error) {
-    alert("Dispatch error: " + error.message);
-  } else {
-    window.loadStaffMonitoringData();
-  }
-};
-
-window.dismissSpecificCommandPrompt = function(sosId) {
-  dismissedCommandSOS.add(String(sosId));
-  window.loadStaffMonitoringData();
-};
-
-// ==========================================
-// 11. PURGE & DELETE ZONE COMMAND CENTER
-// ==========================================
-window.handleDeleteCommandCenter = async function() {
-  const currentZone = sessionStorage.getItem("staffZoneCode");
-  if (!currentZone) return;
-
-  const confirmCode = prompt(`DANGER: This will permanently delete destination zone '${currentZone}' and purge all associated tourists, volunteers, and SOS alerts.\n\nEnter the Admin Passcode for '${currentZone}' to confirm:`);
-  if (!confirmCode) return;
-
-  const { data: zoneRecord } = await supabase
-    .from("destination_zones")
-    .select("passcode")
-    .eq("zone_code", currentZone)
-    .maybeSingle();
-
-  if (!zoneRecord || zoneRecord.passcode !== confirmCode.trim()) {
-    alert("Passcode verification failed. Zone deletion aborted.");
-    return;
-  }
-
-  try {
-    await Promise.all([
-      supabase.from("sos_events").delete().eq("zone_code", currentZone),
-      supabase.from("rescue_missions").delete().eq("zone_code", currentZone),
-      supabase.from("command_center_location").delete().eq("zone_code", currentZone),
-      supabase.from("profiles").delete().eq("zone_code", currentZone),
-      supabase.from("destination_zones").delete().eq("zone_code", currentZone)
-    ]);
-
-    sessionStorage.removeItem("staffAuthenticated");
-    sessionStorage.removeItem("staffZoneCode");
-
-    alert(`Destination Zone '${currentZone}' and all associated telemetry have been permanently deleted.`);
-    window.switchPortal("portalGateway");
-  } catch (err) {
-    alert(`Failed to delete zone: ${err.message}`);
-  }
-};
-
-// ==========================================
-// 12. VOLUNTEER DISPATCH (ZONE ISOLATED)
+// 5. VOLUNTEER DISPATCH & ROUTING TO VICTIM
 // ==========================================
 async function checkVolunteerDistressSignals() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1309,7 +549,7 @@ async function checkVolunteerDistressSignals() {
     if (!availableAlert) return;
 
     activeRescueTarget = availableAlert;
-    const { data: victimProfile } = await supabase.from("profiles").select("name").eq("id", activeRescueTarget.user_id).maybeSingle();
+    const { data: victimProfile } = await supabase.from("profiles").select("name, phone").eq("id", activeRescueTarget.user_id).maybeSingle();
     const victimName = victimProfile?.name || "A nearby person";
 
     const promptText = document.getElementById("hudPromptText");
@@ -1365,6 +605,7 @@ window.closeCompassView = function() {
   if (hudWidget) hudWidget.style.display = "none";
 };
 
+// Volunteer Live Convergence HUD with Victim & Command calling + Navigation
 async function updateVolunteerLocationConvergence(zoneCode) {
   if (!activeRescueTarget) return;
 
@@ -1379,13 +620,15 @@ async function updateVolunteerLocationConvergence(zoneCode) {
     return;
   }
 
-  const [targetMissionsRes, cmdHQ, myCoords] = await Promise.all([
+  const [targetMissionsRes, cmdHQ, myCoords, victimProfileRes] = await Promise.all([
     supabase.from("rescue_missions").select("responder_type").eq("target_user_id", String(activeRescueTarget.user_id)).eq("status", "EN_ROUTE"),
-    getLiveCommandHQCoords(zoneCode),
-    getLiveGpsCoordinates()
+    getLiveCommandHQData(zoneCode),
+    getLiveGpsCoordinates(),
+    supabase.from("profiles").select("name, phone").eq("id", activeRescueTarget.user_id).maybeSingle()
   ]);
 
   const hasCommandAssistance = targetMissionsRes.data && targetMissionsRes.data.some(m => m.responder_type === 'COMMAND_CENTER');
+  const victimProfile = victimProfileRes.data || { name: "Victim", phone: "N/A" };
 
   const targetLat = Number(activeRescueTarget.latitude);
   const targetLon = Number(activeRescueTarget.longitude);
@@ -1393,6 +636,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
   const distKm = calculateDistanceKm(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
   const bearing = calculateBearing(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
   const routeInfo = calculateRouteAndETA(distKm);
+  const googleMapsUrl = getGoogleMapsRouteUrl(myCoords.latitude, myCoords.longitude, targetLat, targetLon);
 
   const mapContainer = document.getElementById("volunteerLiveMap");
   if (mapContainer) {
@@ -1403,8 +647,8 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 
     if (!volunteerMarkers.victim) {
       volunteerMarkers.victim = L.marker([targetLat, targetLon], {
-        icon: createLeafletCustomPin('victim', 'Person in Distress')
-      }).addTo(volunteerMapInstance).bindPopup("🎯 <b>Victim Location</b>");
+        icon: createLeafletCustomPin('victim', `Victim: ${victimProfile.name}`)
+      }).addTo(volunteerMapInstance).bindPopup(`🎯 <b>${victimProfile.name} (In Distress)</b>`);
     } else {
       volunteerMarkers.victim.setLatLng([targetLat, targetLon]);
     }
@@ -1434,6 +678,20 @@ async function updateVolunteerLocationConvergence(zoneCode) {
     volunteerMapInstance.invalidateSize();
   }
 
+  // Action Buttons for Volunteer: Call Victim, Call Command HQ, and Google Route
+  const actionsContainer = document.getElementById("volunteerActionControls");
+  if (actionsContainer) {
+    actionsContainer.innerHTML = `
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <a href="tel:${victimProfile.phone}" style="flex:1; text-align:center; background:#ef4444; color:#fff; padding:6px 8px; border-radius:6px; font-weight:700; text-decoration:none; font-size:11px;">📞 Call ${victimProfile.name}</a>
+        <a href="${googleMapsUrl}" target="_blank" style="flex:1; text-align:center; background:#22c55e; color:#022c0e; padding:6px 8px; border-radius:6px; font-weight:700; text-decoration:none; font-size:11px;">🗺️ Route to Victim</a>
+      </div>
+      ${cmdHQ.phone !== 'N/A' ? `
+        <a href="tel:${cmdHQ.phone}" style="text-align:center; background:#0284c7; color:#fff; padding:5px 8px; border-radius:6px; font-weight:600; text-decoration:none; font-size:11px; display:block;">📞 Call HQ Helpline (${cmdHQ.phone})</a>
+      ` : ''}
+    `;
+  }
+
   const distEl = document.getElementById("compassDistance");
   const brgEl = document.getElementById("compassBearing");
 
@@ -1442,7 +700,7 @@ async function updateVolunteerLocationConvergence(zoneCode) {
 }
 
 // ==========================================
-// 13. VICTIM SCREEN: DUAL GOOGLE MAPS & CONTACTS
+// 6. VICTIM VIEW: VOLUNTEER & HQ ROUTING / CALLING
 // ==========================================
 async function checkVictimAidStatus() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -1461,7 +719,7 @@ async function checkVictimAidStatus() {
 
   const [missionsRes, cmdHQ, myCurrentGps] = await Promise.all([
     supabase.from("rescue_missions").select("*").eq("target_user_id", String(userId)).eq("status", "EN_ROUTE"),
-    getLiveCommandHQCoords(myZone),
+    getLiveCommandHQData(myZone),
     getLiveGpsCoordinates()
   ]);
 
@@ -1502,14 +760,18 @@ async function checkVictimAidStatus() {
 
       const distKm = calculateDistanceKm(vicLat, vicLon, cmdPos[0], cmdPos[1]);
       const cmdRoute = calculateRouteAndETA(distKm);
+      const cmdMapsUrl = getGoogleMapsRouteUrl(cmdPos[0], cmdPos[1], vicLat, vicLon);
 
       responderContactsHTML += `
         <div class="victim-contact-pill">
           <div>
-            🔵 <strong>${myZone} Command Unit:</strong> Dispatched<br>
+            🔵 <strong>${myZone} Command HQ:</strong> Dispatched<br>
             <small style="color: #00d4ff; font-weight: 600;">Distance: ${formatDistance(distKm)} • ETA: ${cmdRoute.etaText}</small>
           </div>
-          <span style="color: #00d4ff; font-weight: 600; font-size: 11px;">Radio Grid Active</span>
+          <div style="display:flex; gap:6px;">
+            ${cmdHQ.phone !== 'N/A' ? `<a href="tel:${cmdHQ.phone}" style="background:#0284c7; color:#fff;">📞 Call HQ</a>` : ''}
+            <a href="${cmdMapsUrl}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ View Route</a>
+          </div>
         </div>
       `;
     } else if (victimMarkers.command) {
@@ -1546,7 +808,7 @@ async function checkVictimAidStatus() {
             </div>
             <div style="display:flex; gap:6px;">
               <a href="tel:${vp.phone}">📞 Call</a>
-              <a href="${googleMapsNavUrl}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ Maps</a>
+              <a href="${googleMapsNavUrl}" target="_blank" style="background:#22c55e; color:#fff;">🗺️ View Route</a>
             </div>
           </div>
         `;
@@ -1573,179 +835,414 @@ async function checkVictimAidStatus() {
 }
 
 // ==========================================
-// 14. SOS BROADCAST & STATE TRANSITION
+// 7. STAFF COMMAND MONITORING MATRIX
 // ==========================================
-window.handleSOSToggle = async function() {
-  const userId = localStorage.getItem("touristSafetyUserId");
+window.loadStaffMonitoringData = async function() {
+  const tableBody = document.getElementById("staffTableBody");
+  if (!tableBody) return;
 
-  if (!userId) {
-    alert("Please register or sign in before broadcasting an SOS signal.");
-    window.openRegistration("tourist");
-    return;
-  }
+  const currentZone = sessionStorage.getItem("staffZoneCode");
+  if (!currentZone) return;
 
-  const { data: profile } = await supabase.from("profiles").select("zone_code").eq("id", userId).maybeSingle();
-  const myZone = profile?.zone_code;
-
-  isEmergencyActive = !isEmergencyActive;
-  const label = document.getElementById("sosLabel");
-
-  if (isEmergencyActive) {
-    if (label) label.innerText = "CANCEL SOS (ACTIVE)";
-    triggerVisualAlarm(true);
-    siren.start();
-
-    await supabase
-      .from("rescue_missions")
-      .update({ status: "CANCELLED" })
-      .eq("volunteer_id", String(userId))
-      .eq("status", "EN_ROUTE");
-
-    window.closeCompassView();
-
-    await Promise.all([
-      supabase.from("sos_events").update({ status: "RESOLVED" }).eq("user_id", userId),
-      supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
-    ]);
-
-    const coords = await getLiveGpsCoordinates();
-
-    await supabase.from("sos_events").insert({
-      user_id: userId,
-      zone_code: myZone,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      status: "ACTIVE"
-    });
-
-  } else {
-    if (label) label.innerText = "SEND LIVE SOS";
-    triggerVisualAlarm(false);
-    siren.stop();
-
-    await Promise.all([
-      supabase.from("sos_events").update({ status: "RESOLVED" }).eq("user_id", userId),
-      supabase.from("rescue_missions").update({ status: "RESOLVED" }).eq("target_user_id", String(userId))
-    ]);
-
-    window.closeCompassView();
-    checkVictimAidStatus();
-  }
-};
-
-function triggerVisualAlarm(activate) {
-  if (activate) {
-    emergencyInterval = setInterval(() => {
-      document.body.classList.toggle("emergency-flash");
-    }, 450);
-  } else {
-    clearInterval(emergencyInterval);
-    document.body.classList.remove("emergency-flash");
-  }
-}
-
-// ==========================================
-// 15. INDIVIDUAL USER ZONE EXIT & PURGE
-// ==========================================
-window.handleSelfOptOut = async function() {
-  const userId = localStorage.getItem("touristSafetyUserId");
-  if (!userId) {
-    alert("No active profile registered on this device.");
-    return;
-  }
-
-  const confirmed = confirm("Are you sure you want to leave this event zone? This will permanently delete your registration and real-time location telemetry.");
-  if (!confirmed) return;
+  const zoneHeader = document.getElementById("staffZoneDisplayHeader");
+  if (zoneHeader) zoneHeader.innerText = currentZone;
 
   try {
-    await Promise.all([
-      supabase.from("locations").delete().eq("user_id", userId),
-      supabase.from("sos_events").delete().eq("user_id", userId),
-      supabase.from("rescue_missions").delete().eq("volunteer_id", String(userId)),
-      supabase.from("rescue_missions").delete().eq("target_user_id", String(userId))
+    const [profilesRes, sosRes, locsRes, missionsRes, cmdHQ] = await Promise.all([
+      supabase.from("profiles").select("*").eq("zone_code", currentZone).order("created_at", { ascending: false }),
+      supabase.from("sos_events").select("*").eq("zone_code", currentZone).eq("status", "ACTIVE"),
+      supabase.from("locations").select("*").order("created_at", { ascending: false }),
+      supabase.from("rescue_missions").select("*").eq("zone_code", currentZone).eq("status", "EN_ROUTE"),
+      getLiveCommandHQData(currentZone)
     ]);
 
-    await supabase.from("profiles").delete().eq("id", userId);
-    localStorage.removeItem("touristSafetyUserId");
+    const profiles = profilesRes.data || [];
+    const activeSOSEvents = sosRes.data || [];
+    const locations = locsRes.data || [];
+    const activeMissions = missionsRes.data || [];
 
-    if (isEmergencyActive) {
-      window.handleSOSToggle();
+    const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
+
+    const profileMap = {};
+    profiles.forEach(p => { profileMap[String(p.id)] = p; });
+
+    const userLocationMap = {};
+    locations.forEach(loc => {
+      if (!userLocationMap[String(loc.user_id)]) {
+        userLocationMap[String(loc.user_id)] = {
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude)
+        };
+      }
+    });
+
+    document.getElementById("mTotal").innerText = profiles.length;
+    document.getElementById("mTourists").innerText = profiles.filter(p => p.is_tourist).length;
+    document.getElementById("mVolunteers").innerText = profiles.filter(p => p.is_volunteer).length;
+    document.getElementById("mSOS").innerText = activeSOSUserIds.size;
+
+    // 1. Dispatch Queue
+    const dispatchQueueEl = document.getElementById("commandDispatchQueue");
+    const unhandledDistressSignals = activeSOSEvents.filter(sos => {
+      const alreadyHandled = dismissedCommandSOS.has(String(sos.id));
+      const alreadyDeployed = activeMissions.some(m => m.responder_type === 'COMMAND_CENTER' && String(m.target_user_id) === String(sos.user_id));
+      return !alreadyHandled && !alreadyDeployed;
+    });
+
+    if (unhandledDistressSignals.length > 0 && dispatchQueueEl) {
+      dispatchQueueEl.style.display = "flex";
+      dispatchQueueEl.innerHTML = unhandledDistressSignals.map(sos => {
+        const victim = profileMap[String(sos.user_id)];
+        const victimName = victim ? victim.name : "Person in Distress";
+        const victimPhone = victim?.phone || "N/A";
+
+        return `
+          <div class="command-action-box">
+            <div class="dispatch-header">
+              <span class="hud-pulse"></span>
+              <strong>CRITICAL ALERT (${currentZone}): ${victimName}</strong>
+            </div>
+            <p>Deploy ${currentZone} Central Command emergency team to assist ${victimName} (${victimPhone})?</p>
+            <div class="dispatch-actions">
+              <button class="command-btn btn-yes" onclick="dispatchSpecificFromCommandCenter('${sos.id}', '${sos.user_id}', '${currentZone}')">✓ YES, DEPLOY COMMAND UNIT</button>
+              <a href="tel:${victimPhone}" class="command-btn" style="background:#0284c7; color:#fff; text-decoration:none; display:inline-flex; align-items:center;">📞 CALL VICTIM</a>
+              <button class="command-btn btn-no" onclick="dismissSpecificCommandPrompt('${sos.id}')">✕ STAND BY</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    } else if (dispatchQueueEl) {
+      dispatchQueueEl.style.display = "none";
     }
 
-    alert("You have left the event zone. Your telemetry has been completely purged.");
-    window.switchPortal("portalGateway");
+    // 2. Zone Roster Table
+    if (profiles.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; opacity:0.7;">No active profiles registered under ${currentZone} yet.</td></tr>`;
+    } else {
+      tableBody.innerHTML = profiles.map(p => {
+        const isCriticalSOS = activeSOSUserIds.has(String(p.id));
+        const loc = userLocationMap[String(p.id)] || { latitude: p.latitude, longitude: p.longitude };
+        let isNearbyResponder = false;
+
+        if (p.is_volunteer && !isCriticalSOS && activeSOSEvents.length > 0 && loc.latitude && loc.longitude) {
+          activeSOSEvents.forEach(sos => {
+            const dist = calculateDistanceKm(loc.latitude, loc.longitude, Number(sos.latitude), Number(sos.longitude));
+            if (dist <= 25.0) isNearbyResponder = true;
+          });
+        }
+
+        let rowClass = "row-normal";
+        let statusTag = `<span class="status-tag tag-green">Normal</span>`;
+
+        if (isCriticalSOS) {
+          rowClass = "row-sos-red";
+          statusTag = `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>`;
+        } else if (isNearbyResponder) {
+          rowClass = "row-responder-yellow";
+          statusTag = `<span class="status-tag tag-yellow">⚡ RESPONDER IN RANGE</span>`;
+        }
+
+        const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+        const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : `Live GPS Active`;
+
+        return `
+          <tr class="${rowClass}">
+            <td>${statusTag}</td>
+            <td><strong>${p.name || 'Anonymous'}</strong></td>
+            <td>${roleBadge || 'User'}</td>
+            <td><a href="tel:${p.phone}" style="color:#ffd000; text-decoration:none; font-weight:700;">📞 ${p.phone || 'N/A'}</a></td>
+            <td>${p.blood_group || 'N/A'}</td>
+            <td>${p.emergency_contact_1 || 'N/A'} (<a href="tel:${p.emergency_phone_1}" style="color:#fff; text-decoration:none;">${p.emergency_phone_1 || 'N/A'}</a>)</td>
+            <td>${p.home_address || 'N/A'}</td>
+            <td class="coord-cell">${coordsDisplay}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // 3. Multi-Case Live Maps & Responders Panel
+    const respondersPanel = document.getElementById("respondersList");
+    const responderBadge = document.getElementById("responderCountBadge");
+    const multiRadarGrid = document.getElementById("staffMultiRadarGrid");
+
+    if (activeMissions.length > 0) {
+      const commandUnits = activeMissions.filter(m => m.responder_type === 'COMMAND_CENTER');
+      const volunteerUnits = activeMissions.filter(m => m.responder_type === 'VOLUNTEER');
+
+      responderBadge.innerText = `${commandUnits.length} Command • ${volunteerUnits.length} Volunteer(s) Active`;
+      if (multiRadarGrid) multiRadarGrid.style.display = "grid";
+
+      const victimMissionsMap = {};
+      activeMissions.forEach(m => {
+        const vicId = String(m.target_user_id);
+        if (!victimMissionsMap[vicId]) victimMissionsMap[vicId] = [];
+        victimMissionsMap[vicId].push(m);
+      });
+
+      const activeCaseIds = Object.keys(victimMissionsMap);
+
+      Object.keys(staffMapInstances).forEach(id => {
+        if (!activeCaseIds.includes(id)) {
+          staffMapInstances[id].remove();
+          delete staffMapInstances[id];
+          delete staffMarkers[id];
+        }
+      });
+
+      activeCaseIds.forEach((vicId, index) => {
+        const mapContainerId = `staffCaseMap_${vicId}`;
+        let card = document.getElementById(`cardWrapper_${vicId}`);
+        const vic = profileMap[vicId] || { name: 'Person in Distress', phone: 'N/A' };
+
+        if (!card) {
+          const cardHTML = `
+            <div id="cardWrapper_${vicId}" class="radar-card-unit">
+              <div class="radar-target-title">🎯 Case #${index + 1}: ${vic.name} (${vic.phone})</div>
+              <div id="${mapContainerId}" class="whatsapp-live-map-window" style="height:190px;"></div>
+              <div id="telemetry_${vicId}" class="radar-telemetry-text" style="line-height: 1.4; font-size: 11px;"></div>
+            </div>
+          `;
+          multiRadarGrid.insertAdjacentHTML('beforeend', cardHTML);
+        }
+
+        const missions = victimMissionsMap[vicId];
+        const hasCommand = missions.some(m => m.responder_type === 'COMMAND_CENTER');
+        const volunteerMissions = missions.filter(m => m.responder_type === 'VOLUNTEER');
+        const vicLoc = userLocationMap[vicId] || { latitude: vic.latitude || cmdHQ.latitude, longitude: vic.longitude || cmdHQ.longitude };
+
+        let map = staffMapInstances[vicId];
+        if (!map) {
+          map = L.map(mapContainerId, { zoomControl: true, scrollWheelZoom: true, dragging: true }).setView([vicLoc.latitude, vicLoc.longitude], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+          staffMapInstances[vicId] = map;
+          staffMarkers[vicId] = {};
+        }
+
+        const currentMarkers = staffMarkers[vicId];
+
+        // Red Pin: Victim
+        if (!currentMarkers.victim) {
+          currentMarkers.victim = L.marker([vicLoc.latitude, vicLoc.longitude], {
+            icon: createLeafletCustomPin('victim', `Victim: ${vic.name}`)
+          }).addTo(map).bindPopup(`🎯 <b>${vic.name}</b> (In Distress)`);
+        } else {
+          currentMarkers.victim.setLatLng([vicLoc.latitude, vicLoc.longitude]);
+        }
+
+        // Blue Pin: Command HQ
+        let cmdDistanceText = "";
+        let cmdMapsUrl = "#";
+        if (hasCommand) {
+          const cmdPos = [cmdHQ.latitude, cmdHQ.longitude];
+
+          if (!currentMarkers.command) {
+            currentMarkers.command = L.marker(cmdPos, {
+              icon: createLeafletCustomPin('command', `${currentZone} Command Unit`)
+            }).addTo(map).bindPopup(`🔵 <b>${currentZone} Command Unit</b>`);
+          } else {
+            currentMarkers.command.setLatLng(cmdPos);
+          }
+
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, cmdPos[0], cmdPos[1]);
+          const cmdRoute = calculateRouteAndETA(distKm);
+          cmdDistanceText = `Command Unit: ${formatDistance(distKm)} • ${cmdRoute.etaText}`;
+          cmdMapsUrl = getGoogleMapsRouteUrl(cmdPos[0], cmdPos[1], vicLoc.latitude, vicLoc.longitude);
+        } else if (currentMarkers.command) {
+          map.removeLayer(currentMarkers.command);
+          delete currentMarkers.command;
+        }
+
+        // Yellow Pin: Volunteer
+        let volDistanceText = "";
+        let volMapsUrl = "#";
+        let volCallBtnHTML = "";
+        if (volunteerMissions.length > 0) {
+          const firstVol = volunteerMissions[0];
+          const volLoc = userLocationMap[String(firstVol.volunteer_id)] || vicLoc;
+          const volPos = [volLoc.latitude, volLoc.longitude];
+          const volProfile = profileMap[String(firstVol.volunteer_id)] || { name: "Volunteer", phone: "N/A" };
+
+          if (!currentMarkers.volunteer) {
+            currentMarkers.volunteer = L.marker(volPos, {
+              icon: createLeafletCustomPin('volunteer', `Volunteer: ${volProfile.name}`)
+            }).addTo(map).bindPopup(`🟡 <b>${volProfile.name}</b> (Volunteer)`);
+          } else {
+            currentMarkers.volunteer.setLatLng(volPos);
+          }
+
+          const distKm = calculateDistanceKm(vicLoc.latitude, vicLoc.longitude, volLoc.latitude, volLoc.longitude);
+          const routeInfo = calculateRouteAndETA(distKm);
+          volDistanceText = `Volunteer (${volProfile.name}): ${formatDistance(distKm)} • ${routeInfo.etaText}`;
+          volMapsUrl = getGoogleMapsRouteUrl(volLoc.latitude, volLoc.longitude, vicLoc.latitude, vicLoc.longitude);
+          volCallBtnHTML = `<a href="tel:${volProfile.phone}" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">📞 Call Volunteer</a>`;
+        } else if (currentMarkers.volunteer) {
+          map.removeLayer(currentMarkers.volunteer);
+          delete currentMarkers.volunteer;
+        }
+
+        const telemEl = document.getElementById(`telemetry_${vicId}`);
+        if (telemEl) {
+          telemEl.innerHTML = `
+            ${cmdDistanceText ? `<div style="color:#00d4ff;">🔵 ${cmdDistanceText}</div>` : ''}
+            ${volDistanceText ? `<div style="color:#ffd000;">🟡 ${volDistanceText}</div>` : ''}
+            <div style="margin-top:6px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+              <a href="tel:${vic.phone}" style="color:#fff; background:#ef4444; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">📞 Call Victim</a>
+              ${hasCommand ? `<a href="${cmdMapsUrl}" target="_blank" style="color:#fff; background:#0284c7; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px;">🗺️ Command Route</a>` : ''}
+              ${volCallBtnHTML}
+              ${volunteerMissions.length > 0 ? `<a href="${volMapsUrl}" target="_blank" style="color:#000; background:#ffd000; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:700;">🗺️ Volunteer Route</a>` : ''}
+            </div>
+          `;
+        }
+
+        map.invalidateSize();
+      });
+
+      respondersPanel.innerHTML = activeMissions.map(m => {
+        const vic = profileMap[String(m.target_user_id)] || { name: 'Tourist', phone: 'N/A' };
+        if (m.responder_type === 'COMMAND_CENTER') {
+          return `
+            <div class="responder-item" style="border-color: #00d4ff;">
+              <strong style="color: #00d4ff;">🔵 ${currentZone} Command Unit</strong> ➔ <span style="color:#ffffff;">ASSISTING: <strong>${vic.name}</strong> (<a href="tel:${vic.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vic.phone}</a>)</span>
+            </div>
+          `;
+        } else {
+          const vol = profileMap[String(m.volunteer_id)] || { name: 'Volunteer Unit', phone: 'N/A' };
+          return `
+            <div class="responder-item" style="border-color: #ffd000;">
+              <strong style="color: #ffd000;">🟡 Volunteer: ${vol.name}</strong> (<a href="tel:${vol.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vol.phone}</a>) ➔ <span style="color:#ffffff;">EN ROUTE TO: <strong>${vic.name}</strong> (<a href="tel:${vic.phone}" style="color:#ffd000; text-decoration:none;">📞 ${vic.phone}</a>)</span>
+            </div>
+          `;
+        }
+      }).join("");
+    } else {
+      responderBadge.innerText = `0 Responders En Route`;
+      if (multiRadarGrid) multiRadarGrid.style.display = "none";
+      respondersPanel.innerHTML = `<em>No active rescue missions underway in this zone. Standing by for alerts.</em>`;
+    }
+
   } catch (err) {
-    alert(`Failed to leave zone: ${err.message}`);
+    console.error("Staff Data Load Error:", err);
+  }
+};
+
+window.dispatchSpecificFromCommandCenter = async function(sosId, targetUserId, zoneCode) {
+  dismissedCommandSOS.add(String(sosId));
+
+  const { error } = await supabase.from("rescue_missions").insert({
+    sos_id: String(sosId),
+    zone_code: zoneCode,
+    responder_type: 'COMMAND_CENTER',
+    target_user_id: String(targetUserId),
+    status: "EN_ROUTE"
+  });
+
+  if (error) {
+    alert("Dispatch error: " + error.message);
+  } else {
+    window.loadStaffMonitoringData();
+  }
+};
+
+window.dismissSpecificCommandPrompt = function(sosId) {
+  dismissedCommandSOS.add(String(sosId));
+  window.loadStaffMonitoringData();
+};
+
+// ==========================================
+// 8. MASTER OVERVIEW MATRIX
+// ==========================================
+window.loadSuperAdminMatrix = async function() {
+  const tableBody = document.getElementById("superAdminTableBody");
+  const zonesCardsEl = document.getElementById("saZonesCardsContainer");
+  if (!tableBody) return;
+
+  try {
+    const [zonesRes, profilesRes, sosRes, locsRes, hqRes] = await Promise.all([
+      supabase.from("destination_zones").select("*").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("sos_events").select("*").eq("status", "ACTIVE"),
+      supabase.from("locations").select("*").order("created_at", { ascending: false }),
+      supabase.from("command_center_location").select("*")
+    ]);
+
+    const zones = zonesRes.data || [];
+    const profiles = profilesRes.data || [];
+    const activeSOSEvents = sosRes.data || [];
+    const locations = locsRes.data || [];
+    const hqUnits = hqRes.data || [];
+
+    const activeSOSUserIds = new Set(activeSOSEvents.map(s => String(s.user_id)));
+
+    const userLocationMap = {};
+    locations.forEach(loc => {
+      if (!userLocationMap[String(loc.user_id)]) {
+        userLocationMap[String(loc.user_id)] = {
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude)
+        };
+      }
+    });
+
+    document.getElementById("saZonesCount").innerText = zones.length;
+    document.getElementById("saStaffCount").innerText = hqUnits.length;
+    document.getElementById("saTouristsCount").innerText = profiles.filter(p => p.is_tourist).length;
+    document.getElementById("saSOSCount").innerText = activeSOSUserIds.size;
+    document.getElementById("saZoneListBadge").innerText = `${zones.length} Destination Zones Active`;
+
+    if (zonesCardsEl) {
+      if (zones.length === 0) {
+        zonesCardsEl.innerHTML = `<em style="opacity: 0.7;">No custom zones created yet.</em>`;
+      } else {
+        zonesCardsEl.innerHTML = zones.map(z => `
+          <div class="zone-summary-card">
+            <strong>📍 ${z.zone_code}</strong>
+            <small>${z.zone_name}</small>
+            <div style="margin-top: 6px; font-size: 11px; font-family: monospace; color: #a7f3d0;">
+              Helpline: <b>${z.contact_phone || 'N/A'}</b> • Passcode: <b>${z.passcode}</b> • Radius: <b>${z.geofence_radius_km || 2.5}km</b>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    if (profiles.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; opacity:0.7;">No profiles registered across any destination yet.</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = profiles.map(p => {
+      const isCriticalSOS = activeSOSUserIds.has(String(p.id));
+      const loc = userLocationMap[String(p.id)] || { latitude: p.latitude, longitude: p.longitude };
+      const coordsDisplay = (loc.latitude && loc.longitude) ? `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}` : "Live GPS Active";
+
+      let rowClass = isCriticalSOS ? "row-sos-red" : "row-normal";
+      let statusTag = isCriticalSOS ? `<span class="status-tag tag-red">🚨 SOS ACTIVE</span>` : `<span class="status-tag tag-green">Normal</span>`;
+      const roleBadge = [p.is_tourist ? "Tourist" : "", p.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+
+      return `
+        <tr class="${rowClass}">
+          <td><strong style="color: #ffd000;">${p.zone_code || 'UNASSIGNED'}</strong></td>
+          <td>${statusTag}</td>
+          <td><strong>${p.name || 'Anonymous'}</strong></td>
+          <td>${roleBadge || 'User'}</td>
+          <td><a href="tel:${p.phone}" style="color:#ffd000; text-decoration:none; font-weight:700;">📞 ${p.phone || 'N/A'}</a></td>
+          <td>${p.blood_group || 'N/A'}</td>
+          <td>${p.emergency_contact_1 || 'N/A'} (<a href="tel:${p.emergency_phone_1}" style="color:#fff; text-decoration:none;">${p.emergency_phone_1 || 'N/A'}</a>)</td>
+          <td>${p.home_address || 'N/A'}</td>
+          <td class="coord-cell">${coordsDisplay}</td>
+        </tr>
+      `;
+    }).join("");
+
+  } catch (err) {
+    console.error("Super Admin Load Error:", err);
   }
 };
 
 // ==========================================
-// 16. BACKGROUND ENGINE & LISTENERS
+// 9. FORM LISTENERS & INITIALIZATION
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
-
-  const scenes = [
-    {
-      image: "https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=2000&q=85",
-      accent: "rgba(52, 211, 153, 0.45)",
-      glow: "rgba(16, 185, 129, 0.15)",
-      modalBg: "rgba(8, 26, 16, 0.94)",
-      cardBg: "rgba(255, 255, 255, 0.14)"
-    },
-    {
-      image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2000&q=85",
-      accent: "rgba(56, 189, 248, 0.55)",
-      glow: "rgba(14, 165, 233, 0.18)",
-      modalBg: "rgba(10, 24, 40, 0.94)",
-      cardBg: "rgba(200, 230, 255, 0.14)"
-    },
-    {
-      image: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2000&q=85",
-      accent: "rgba(134, 239, 172, 0.55)",
-      glow: "rgba(74, 222, 128, 0.16)",
-      modalBg: "rgba(14, 34, 20, 0.94)",
-      cardBg: "rgba(220, 255, 230, 0.15)"
-    }
-  ];
-
-  scenes.forEach(s => {
-    const img = new Image();
-    img.src = s.image;
-  });
-
-  const planeA = document.getElementById("bgPlaneA");
-  const planeB = document.getElementById("bgPlaneB");
-  let currentPlane = planeA;
-  let nextPlane = planeB;
-  let sceneIndex = 0;
-
-  function applySceneTheme(scene) {
-    document.documentElement.style.setProperty('--theme-accent', scene.accent);
-    document.documentElement.style.setProperty('--theme-glow', scene.glow);
-    document.documentElement.style.setProperty('--theme-modal-bg', scene.modalBg);
-    document.documentElement.style.setProperty('--theme-card-bg', scene.cardBg);
-  }
-
-  if (planeA) {
-    planeA.style.backgroundImage = `url('${scenes[0].image}')`;
-    applySceneTheme(scenes[0]);
-  }
-
-  setInterval(() => {
-    sceneIndex = (sceneIndex + 1) % scenes.length;
-    const targetScene = scenes[sceneIndex];
-
-    nextPlane.style.backgroundImage = `url('${targetScene.image}')`;
-    applySceneTheme(targetScene);
-    
-    nextPlane.classList.add("active");
-    currentPlane.classList.remove("active");
-
-    const temp = currentPlane;
-    currentPlane = nextPlane;
-    nextPlane = temp;
-  }, 13000);
-
   // 1. Staff Authentication
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
@@ -1773,6 +1270,7 @@ window.addEventListener("DOMContentLoaded", () => {
         await supabase.from("command_center_location").upsert({
           id: `HQ_${enteredZone}`,
           zone_code: enteredZone,
+          contact_phone: zoneRecord.contact_phone || "",
           latitude: currentGps.latitude,
           longitude: currentGps.longitude,
           updated_at: new Date().toISOString()
@@ -1806,13 +1304,14 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 3. Create Custom Destination Zone
+  // 3. Create Custom Destination Zone (Captures Creator Phone)
   const createZoneForm = document.getElementById("createZoneForm");
   if (createZoneForm) {
     createZoneForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const zoneCode = document.getElementById("newZoneCode").value.trim().toUpperCase();
       const zoneName = document.getElementById("newZoneName").value.trim();
+      const zonePhone = document.getElementById("newZonePhone").value.trim();
       const passcode = document.getElementById("newZonePasscode").value.trim();
 
       const currentGps = await getLiveGpsCoordinates();
@@ -1820,6 +1319,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const { error } = await supabase.from("destination_zones").insert({
         zone_code: zoneCode,
         zone_name: zoneName,
+        contact_phone: zonePhone,
         passcode: passcode,
         geofence_lat: currentGps.latitude,
         geofence_lon: currentGps.longitude,
@@ -1829,14 +1329,23 @@ window.addEventListener("DOMContentLoaded", () => {
       if (error) {
         alert(`Failed to create zone: ${error.message}`);
       } else {
-        alert(`Destination Zone '${zoneCode}' (${zoneName}) created successfully! You can now login.`);
+        await supabase.from("command_center_location").upsert({
+          id: `HQ_${zoneCode}`,
+          zone_code: zoneCode,
+          contact_phone: zonePhone,
+          latitude: currentGps.latitude,
+          longitude: currentGps.longitude,
+          updated_at: new Date().toISOString()
+        });
+
+        alert(`Destination Zone '${zoneCode}' (${zoneName}) created successfully!`);
         window.openStaffModal();
         document.getElementById("staffZoneInput").value = zoneCode;
       }
     });
   }
 
-  // 4. Phone Sign-In
+  // 4. User Sign In
   const userSignInForm = document.getElementById("userSignInForm");
   if (userSignInForm) {
     userSignInForm.addEventListener("submit", async (e) => {
@@ -1911,6 +1420,7 @@ window.addEventListener("DOMContentLoaded", () => {
           await supabase.from("destination_zones").insert({
             zone_code: destinationZone,
             zone_name: `${destinationZone} Safety Zone`,
+            contact_phone: payload.phone,
             passcode: "SAFE2026",
             geofence_lat: coords.latitude,
             geofence_lon: coords.longitude,
