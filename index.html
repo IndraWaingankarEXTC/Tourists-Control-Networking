@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   
-  <!-- High Performance Client-Side QR Generator -->
+  <!-- QR Generator -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   
   <link rel="stylesheet" href="styles.css">
@@ -138,7 +138,7 @@
           <!-- Digital Safety ID Passport Card with Live Selfie -->
           <div class="digital-id-card">
             <div class="digital-id-header">
-              <div style="display:flex; align-items:center; gap: 12px;">
+              <div style="display:flex; align-items:center; gap: 14px;">
                 <img id="passportSelfiePhoto" class="passport-photo-img" src="" alt="Profile Selfie">
                 <div>
                   <small style="color: #ffd000; letter-spacing: 1.5px; font-weight: 700;">OFFICIAL DIGITAL SAFETY PASSPORT</small>
@@ -156,7 +156,7 @@
                 <div><strong>Blood Group:</strong> <span id="idBlood">--</span></div>
                 <div><strong>Emergency Contact:</strong> <span id="idEmergency">--</span></div>
                 <div><strong>Stay / Address:</strong> <span id="idAddress">--</span></div>
-                <small style="opacity: 0.7; font-size: 11px; display: block; margin-top: 6px;">💡 This QR code contains your real encrypted emergency information. Present it to local authorities.</small>
+                <small style="opacity: 0.7; font-size: 11px; display: block; margin-top: 6px;">💡 Real scannable data for emergency and offline ID verification.</small>
               </div>
             </div>
           </div>
@@ -542,31 +542,39 @@
         </form>
       </section>
 
-      <!-- 6. USER REGISTRATION WITH SELFIE CAMERA -->
+      <!-- 6. USER REGISTRATION WITH DEDICATED SELFIE CAMERA -->
       <section id="registrationPage" class="glass-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()">✕ Close</button>
         <h2 id="registrationTitle">Registration</h2>
-        <p class="form-subtitle">Sync your details and capture a live selfie for your Digital Safety ID.</p>
+        <p class="form-subtitle">Sync your details and take a live selfie for your Digital Safety ID.</p>
 
         <form id="registrationForm">
           
-          <!-- LIVE SELFIE CAMERA VIEWER -->
+          <!-- LIVE SELFIE CAMERA & HARDWARE CAPTURE BOX -->
           <div class="form-group full-width camera-section">
-            <label style="font-weight: 700; color: #38bdf8;">📸 Required: Live Selfie Verification</label>
+            <label style="font-weight: 700; color: #38bdf8; font-size: 13px;">📸 Required: Live Selfie Verification</label>
             
             <div class="camera-viewport-box">
-              <video id="selfieVideo" autoplay playsinline class="camera-stream"></video>
+              <video id="selfieVideo" autoplay playsinline class="camera-stream" style="display: none;"></video>
               <canvas id="selfieCanvas" style="display: none;"></canvas>
               <img id="selfiePreview" class="camera-preview-img" style="display: none;" alt="Captured Selfie">
+              <div id="cameraPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 12px;">
+                <span style="font-size: 38px; margin-bottom: 4px;">🤳</span>
+                <span>Selfie Not Taken Yet</span>
+              </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 8px; justify-content: center;">
-              <button type="button" id="startCameraBtn" class="camera-action-btn" onclick="startLiveCamera('selfieVideo', 'selfiePreview', 'captureBtn', 'retakeBtn')">📷 Open Camera</button>
-              <button type="button" id="captureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('selfieVideo', 'selfieCanvas', 'selfiePreview', 'capturedSelfieData', 'captureBtn', 'retakeBtn')">⚡ Capture Selfie</button>
-              <button type="button" id="retakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('selfieVideo', 'selfiePreview', 'capturedSelfieData', 'captureBtn', 'retakeBtn')">🔄 Retake</button>
+            <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
+              <button type="button" id="startCameraBtn" class="camera-action-btn" onclick="startLiveCamera('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'captureBtn', 'retakeBtn')">📷 Open Live Camera</button>
+              <button type="button" id="captureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('selfieVideo', 'selfieCanvas', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')">⚡ Take Snapshot</button>
+              <button type="button" id="retakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')">🔄 Retake</button>
+
+              <label class="camera-action-btn" style="background: #38bdf8; color: #022c0e; cursor: pointer; display: inline-flex; align-items: center;">
+                📱 Tap to Open Camera
+                <input type="file" id="nativeSelfieInput" accept="image/*" capture="user" style="display: none;" onchange="handleNativeSelfieCapture(event, 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'selfieVideo', 'captureBtn', 'retakeBtn')">
+              </label>
             </div>
             
-            <!-- Hidden Input for Base64 Selfie Photo -->
             <input type="hidden" id="capturedSelfieData">
           </div>
 
@@ -667,15 +675,24 @@
             <label style="font-weight: 700; color: #38bdf8;">📸 Update Profile Selfie</label>
             
             <div class="camera-viewport-box">
-              <video id="editSelfieVideo" autoplay playsinline class="camera-stream"></video>
+              <video id="editSelfieVideo" autoplay playsinline class="camera-stream" style="display: none;"></video>
               <canvas id="editSelfieCanvas" style="display: none;"></canvas>
               <img id="editSelfiePreview" class="camera-preview-img" style="display: none;" alt="Current Selfie">
+              <div id="editCameraPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 12px;">
+                <span style="font-size: 38px; margin-bottom: 4px;">🤳</span>
+                <span>Current Selfie Preview</span>
+              </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 8px; justify-content: center;">
-              <button type="button" id="editStartCameraBtn" class="camera-action-btn" onclick="startLiveCamera('editSelfieVideo', 'editSelfiePreview', 'editCaptureBtn', 'editRetakeBtn')">📷 Retake Camera</button>
-              <button type="button" id="editCaptureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('editSelfieVideo', 'editSelfieCanvas', 'editSelfiePreview', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')">⚡ Capture</button>
-              <button type="button" id="editRetakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('editSelfieVideo', 'editSelfiePreview', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')">🔄 Reset</button>
+            <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
+              <button type="button" id="editStartCameraBtn" class="camera-action-btn" onclick="startLiveCamera('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCaptureBtn', 'editRetakeBtn')">📷 Open Live Camera</button>
+              <button type="button" id="editCaptureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('editSelfieVideo', 'editSelfieCanvas', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')">⚡ Take Snapshot</button>
+              <button type="button" id="editRetakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')">🔄 Retake</button>
+              
+              <label class="camera-action-btn" style="background: #38bdf8; color: #022c0e; cursor: pointer; display: inline-flex; align-items: center;">
+                📱 Tap to Open Camera
+                <input type="file" id="editNativeSelfieInput" accept="image/*" capture="user" style="display: none;" onchange="handleNativeSelfieCapture(event, 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editSelfieVideo', 'editCaptureBtn', 'editRetakeBtn')">
+              </label>
             </div>
           </div>
 
