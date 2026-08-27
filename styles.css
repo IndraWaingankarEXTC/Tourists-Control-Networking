@@ -26,7 +26,6 @@ body {
 
 /* =========================================================
    ADAPTIVE SCRIPT TYPOGRAPHY & LAYOUT SCALING
-   (Prevents Tamil, Hindi, Telugu, Urdu from crowding/jumbling)
    ========================================================= */
 body.lang-ta,
 body.lang-te,
@@ -60,7 +59,7 @@ body.lang-ks {
   line-height: 2.1;
 }
 
-/* Make form grid elastic for longer Indic words */
+/* Adaptive Elastic Grid for long words */
 body.lang-ta .form-grid,
 body.lang-te .form-grid,
 body.lang-ml .form-grid,
@@ -253,6 +252,51 @@ body.lang-ml .glass-card h2 {
 .card-content p { color: rgba(255, 255, 255, 0.9); font-size: 13px; line-height: 1.5; }
 .arrow { position: absolute; top: 22px; right: 22px; font-size: 20px; color: rgba(255, 255, 255, 0.85); }
 
+.session-badge {
+  width: 100%;
+  margin-bottom: 15px;
+  background: var(--theme-glow);
+  border: 1px solid var(--theme-accent);
+  padding: 14px 22px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.badge-text small { font-size: 10px; letter-spacing: 1.5px; color: rgba(255, 255, 255, 0.8); display: block; }
+.badge-text strong { font-size: 18px; color: #ffffff; }
+
+.switch-user-btn {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.switch-user-btn:hover {
+  background: rgba(239, 68, 68, 0.4);
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.blockchain-block-card {
+  min-width: 220px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid #38bdf8;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  flex-shrink: 0;
+}
+
 /* Digital Safety ID Passport */
 .digital-id-card {
   width: 100%;
@@ -334,7 +378,7 @@ body.lang-ml .glass-card h2 {
   color: #ffd000;
 }
 
-/* Camera Stream */
+/* Camera Viewport */
 .camera-section {
   background: rgba(0, 0, 0, 0.4);
   padding: 14px;
@@ -373,7 +417,6 @@ body.lang-ml .glass-card h2 {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
 .camera-action-btn:hover {
@@ -416,6 +459,49 @@ body.lang-ml .glass-card h2 {
 
 .table-action-edit-btn:hover { background: #38bdf8; color: #022c0e; }
 
+.delete-zone-btn {
+  background: rgba(220, 38, 38, 0.35) !important;
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  color: #fca5a5 !important;
+}
+
+.victim-aid-status-box {
+  width: 100%;
+  background: rgba(14, 165, 233, 0.25);
+  border: 1px solid #38bdf8;
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 15px;
+  backdrop-filter: blur(20px);
+}
+
+.aid-pulse-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 10px #38bdf8;
+}
+
+.whatsapp-live-map-window {
+  width: 100%;
+  height: 240px;
+  border-radius: 16px;
+  border: 2px solid rgba(56, 189, 248, 0.6);
+  margin: 14px 0 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.victim-contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+}
+
 .sos-wrapper { width: 100%; margin-top: 10px; }
 .sos-button {
   width: 100%;
@@ -447,6 +533,19 @@ body.lang-ml .glass-card h2 {
 .sos-text small { font-size: 10px; letter-spacing: 2px; opacity: 0.85; }
 .sos-text strong { display: block; font-size: 22px; }
 .sos-arrow { margin-left: auto; font-size: 24px; }
+
+.opt-out-wrapper { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.opt-out-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.opt-out-note { font-size: 10px; color: rgba(255, 255, 255, 0.6); }
 
 .staff-dashboard {
   width: 96%;
@@ -504,6 +603,16 @@ body.lang-ml .glass-card h2 {
   background: rgba(255, 255, 255, 0.18);
   border-bottom: 1px solid rgba(255, 255, 255, 0.25);
 }
+
+.staff-table td { border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.coord-cell { font-family: monospace; font-size: 12px; color: #a7f3d0; }
+
+.row-sos-red { background-color: rgba(190, 20, 20, 0.7) !important; color: #fff !important; }
+.row-normal { background: transparent; }
+
+.status-tag { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; text-transform: uppercase; font-weight: 700; }
+.tag-red { background: #ff3333; color: white; }
+.tag-green { background: rgba(255, 255, 255, 0.25); color: white; }
 
 .modal-overlay {
   position: fixed;
