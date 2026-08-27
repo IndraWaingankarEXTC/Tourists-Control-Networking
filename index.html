@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tourist Safety Command Network - Blockchain Edition</title>
   
+  <!-- Leaflet.js Assets -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  
+  <!-- High Performance Client-Side QR Generator -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   
   <link rel="stylesheet" href="styles.css">
@@ -155,7 +158,7 @@
         <div id="loggedInSection" class="user-state-container" style="display: none; width: 100%; max-width: 680px;">
           <div class="session-badge">
             <div class="badge-text">
-              <small><span data-i18n="zone_command">ACTIVE DESTINATION ZONE:</span> <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span></small>
+              <small><span data-i18n="active_zone_badge_label">ACTIVE DESTINATION ZONE:</span> <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span></small>
               <div><strong><span id="activeUserName">--</span></strong> (<span id="activeUserRole">--</span>)</div>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -209,8 +212,8 @@
             <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
               <div class="aid-pulse-dot"></div>
               <div>
-                <strong id="victimAidTitle">Assistance En Route</strong>
-                <p id="victimAidDetails">Help has been dispatched to your location.</p>
+                <strong id="victimAidTitle" data-i18n="assistance_en_route">Assistance En Route</strong>
+                <p id="victimAidDetails" data-i18n="assistance_dispatched_desc">Help has been dispatched to your location.</p>
               </div>
             </div>
 
@@ -251,8 +254,8 @@
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="refresh-btn" onclick="loadStaffMonitoringData()" data-i18n="refresh">↻ Refresh</button>
-            <button class="switch-user-btn" onclick="exitStaffPortal()" data-i18n="log_out">Log Out HQ</button>
-            <button class="switch-user-btn delete-zone-btn" onclick="handleDeleteCommandCenter()">🗑️ Delete Zone</button>
+            <button class="switch-user-btn" onclick="exitStaffPortal()" data-i18n="logout_hq">Log Out HQ</button>
+            <button class="switch-user-btn delete-zone-btn" onclick="handleDeleteCommandCenter()" data-i18n="delete_zone_btn">🗑️ Delete Zone</button>
           </div>
         </div>
 
@@ -283,7 +286,7 @@
           </div>
           
           <div style="margin: 10px 0; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-            <label for="geofenceRadiusSlider" style="font-size: 13px;">Adjust Perimeter Radius:</label>
+            <label for="geofenceRadiusSlider" style="font-size: 13px;" data-i18n="adjust_radius">Adjust Perimeter Radius:</label>
             <input type="range" id="geofenceRadiusSlider" min="0.5" max="15" step="0.5" value="2.5" style="flex: 1; max-width: 250px;" oninput="updateGeofenceRadiusFromSlider(this.value)">
             <button class="table-action-edit-btn" style="background: #22c55e; color: #022c0e; font-weight: 700;" onclick="saveGeofenceConfiguration()" data-i18n="save_geofence">💾 Save Geofence Boundary</button>
           </div>
@@ -302,7 +305,7 @@
           </div>
           <div id="staffMultiRadarGrid" class="multi-radar-grid" style="display: none;"></div>
           <div class="panel-content" id="respondersList" style="margin-top: 10px;">
-            <em>No active rescue missions underway in this zone. Standing by for alerts.</em>
+            <em data-i18n="no_active_rescues">No active rescue missions underway in this zone. Standing by for alerts.</em>
           </div>
         </div>
 
@@ -351,7 +354,7 @@
             <strong id="saZonesCount">0</strong>
           </div>
           <div class="metric-box">
-            <span>Blockchain Blocks</span>
+            <span data-i18n="blockchain_blocks_label">Blockchain Blocks</span>
             <strong id="saBlocksCount" style="color: #38bdf8;">0</strong>
           </div>
           <div class="metric-box">
@@ -367,8 +370,8 @@
         <!-- Blockchain Ledger Visualizer -->
         <div class="responders-live-panel" style="border-color: #38bdf8; background: rgba(56, 189, 248, 0.08);">
           <div class="panel-header">
-            <strong style="color: #38bdf8;">🔗 Immutable Cryptographic Blockchain Ledger</strong>
-            <span id="blockchainStatusBadge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800;">VERIFIED VALID</span>
+            <strong style="color: #38bdf8;" data-i18n="blockchain_ledger_title">🔗 Immutable Cryptographic Blockchain Ledger</strong>
+            <span id="blockchainStatusBadge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800;" data-i18n="verified">VERIFIED VALID</span>
           </div>
           <div id="blockchainCardsGrid" class="blockchain-ledger-container" style="display: flex; gap: 12px; overflow-x: auto; padding: 10px 0;"></div>
         </div>
@@ -454,7 +457,7 @@
       
       <!-- 1. DIGITAL ID QR MODAL POPUP -->
       <section id="qrInspectionModal" class="glass-modal" style="display: none; max-width: 440px; text-align: center;">
-        <button class="back-btn" onclick="closeModal()">✕ Close</button>
+        <button class="back-btn" onclick="closeModal()" data-i18n="close_btn">✕ Close</button>
         <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px;">
           <img id="inspectSelfieImg" class="passport-photo-img" src="" alt="Selfie">
           <h2 id="inspectModalName" style="margin: 0;" data-i18n="official_passport">Digital Safety ID</h2>
@@ -470,87 +473,87 @@
 
       <!-- 2. STAFF LOGIN -->
       <section id="staffPasscodeModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
+        <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 data-i18n="staff_command">Staff Command Login</h2>
-        <p class="form-subtitle">Enter your destination zone code and passcode.</p>
+        <p class="form-subtitle" data-i18n="staff_command_desc">Enter your destination zone code and passcode.</p>
         
         <form id="staffAuthForm">
           <div class="form-group">
-            <label for="staffZoneInput" data-i18n="zone_command">Destination / Zone Code</label>
-            <input type="text" id="staffZoneInput" required placeholder="Enter zone code" style="text-transform: uppercase;">
+            <label for="staffZoneInput" data-i18n="zone_code_label">Destination / Zone Code</label>
+            <input type="text" id="staffZoneInput" required placeholder="Enter zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase;">
           </div>
           <div class="form-group" style="margin-top: 10px;">
-            <label for="staffPasscodeInput">Passcode</label>
-            <input type="password" id="staffPasscodeInput" required placeholder="Enter zone passcode">
+            <label for="staffPasscodeInput" data-i18n="admin_passcode_label">Passcode</label>
+            <input type="password" id="staffPasscodeInput" required placeholder="Enter zone passcode" data-i18n-placeholder="ph_passcode">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;">Login to Command Center</button>
+          <button type="submit" class="submit-btn" style="margin-top: 15px;" data-i18n="login_command_btn">Login to Command Center</button>
         </form>
 
         <div style="margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 14px; text-align: center;">
           <small style="opacity: 0.8;">Need to establish a new destination zone?</small><br>
-          <button type="button" class="switch-user-btn" style="margin-top: 6px;" onclick="openCreateZoneModal()">+ Register New Destination Zone</button>
+          <button type="button" class="switch-user-btn" style="margin-top: 6px;" onclick="openCreateZoneModal()" data-i18n="reg_new_zone_btn">+ Register New Destination Zone</button>
         </div>
       </section>
 
       <!-- 3. MASTER HEAD LOGIN -->
       <section id="superAdminAuthModal" class="glass-modal auth-modal" style="display: none; max-width: 440px; border-color: #ffd000;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
+        <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 style="color: #ffd000;" data-i18n="master_control">Website Head Login</h2>
-        <p class="form-subtitle">Enter Master Admin Passcode for global oversight across all zones.</p>
+        <p class="form-subtitle" data-i18n="master_control_desc">Enter Master Admin Passcode for global oversight across all zones.</p>
         
         <form id="superAdminAuthForm">
           <div class="form-group">
-            <label for="superAdminPasscodeInput">Master Passcode (Default: SUPERADMIN2026)</label>
-            <input type="password" id="superAdminPasscodeInput" required placeholder="Enter Master Passcode">
+            <label for="superAdminPasscodeInput" data-i18n="master_passcode_label">Master Passcode (Default: SUPERADMIN2026)</label>
+            <input type="password" id="superAdminPasscodeInput" required placeholder="Enter Master Passcode" data-i18n-placeholder="ph_passcode">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #ffd000; color: #000; font-weight: 700;">Authorize Master Access</button>
+          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #ffd000; color: #000; font-weight: 700;" data-i18n="auth_master_btn">Authorize Master Access</button>
         </form>
       </section>
 
-      <!-- 4. CREATE NEW DESTINATION ZONE -->
+      <!-- 4. CREATE NEW DESTINATION ZONE (100% Fully Bound & Translated) -->
       <section id="createZoneModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
-        <button class="back-btn" onclick="openStaffModal()">← Back to Login</button>
-        <h2>Create Destination Zone</h2>
-        <p class="form-subtitle">Set up a customized command center, helpline phone, and safety grid.</p>
+        <button class="back-btn" onclick="openStaffModal()" data-i18n="back_to_login">← Back to Login</button>
+        <h2 data-i18n="create_zone_title">Create Destination Zone</h2>
+        <p class="form-subtitle" data-i18n="create_zone_desc">Set up a customized command center, helpline phone, and safety grid.</p>
         
         <form id="createZoneForm">
           <div class="form-group">
-            <label for="newZoneCode" data-i18n="zone_command">Unique Destination Code</label>
-            <input type="text" id="newZoneCode" required placeholder="e.g. MOUNT-PARK, BEACH-RESORT" style="text-transform: uppercase;">
+            <label for="newZoneCode" data-i18n="zone_code_label">Unique Destination Code</label>
+            <input type="text" id="newZoneCode" required placeholder="e.g. MOUNT-PARK, BEACH-RESORT" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase;">
           </div>
           <div class="form-group" style="margin-top: 10px;">
-            <label for="newZoneName">Destination Name / Region</label>
-            <input type="text" id="newZoneName" required placeholder="e.g. Mountain Park Safety Grid">
+            <label for="newZoneName" data-i18n="zone_name_label">Destination Name / Region</label>
+            <input type="text" id="newZoneName" required placeholder="e.g. Mountain Park Safety Grid" data-i18n-placeholder="ph_zone_name">
           </div>
           <div class="form-group" style="margin-top: 10px;">
-            <label for="newZonePhone" data-i18n="phone_label">Command Center Helpline Phone</label>
-            <input type="tel" id="newZonePhone" required placeholder="+91 9876543210">
+            <label for="newZonePhone" data-i18n="helpline_phone_label">Command Center Helpline Phone</label>
+            <input type="tel" id="newZonePhone" required placeholder="+91 9876543210" data-i18n-placeholder="ph_phone">
           </div>
           <div class="form-group" style="margin-top: 10px;">
-            <label for="newZonePasscode">Admin Master Passcode</label>
-            <input type="password" id="newZonePasscode" required placeholder="Set secure passcode">
+            <label for="newZonePasscode" data-i18n="admin_passcode_label">Admin Master Passcode</label>
+            <input type="password" id="newZonePasscode" required placeholder="Set secure passcode" data-i18n-placeholder="ph_passcode">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #22c55e; color: #022c0e;">Create Command Center</button>
+          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #22c55e; color: #022c0e; font-weight: 700;" data-i18n="create_command_btn">Create Command Center</button>
         </form>
       </section>
 
       <!-- 5. USER SIGN IN -->
       <section id="userSignInModal" class="glass-modal auth-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
+        <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 data-i18n="signin_phone">Sign In to Safety Grid</h2>
         <p class="form-subtitle" data-i18n="signin_desc">Enter your registered phone number to restore your Digital ID.</p>
         <form id="userSignInForm">
           <div class="form-group">
             <label for="signInPhoneInput" data-i18n="phone_label">Registered Phone Number</label>
-            <input type="tel" id="signInPhoneInput" required placeholder="+91 9876543210">
+            <input type="tel" id="signInPhoneInput" required placeholder="+91 9876543210" data-i18n-placeholder="ph_phone">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;" data-i18n="signin_phone">Restore Session</button>
+          <button type="submit" class="submit-btn" style="margin-top: 15px;" data-i18n="restore_session_btn">Restore Session</button>
         </form>
       </section>
 
       <!-- 6. USER REGISTRATION WITH DEDICATED SELFIE CAMERA -->
       <section id="registrationPage" class="glass-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Close</button>
+        <button class="back-btn" onclick="closeModal()" data-i18n="close_btn">✕ Close</button>
         <h2 id="registrationTitle" data-i18n="register_tourist">Registration</h2>
         <p class="form-subtitle" data-i18n="register_tourist_desc">Sync your details and take a live selfie for your Digital Safety ID.</p>
 
@@ -586,18 +589,18 @@
 
           <div class="form-grid" style="margin-top: 14px;">
             <div class="form-group full-width" style="background: rgba(255, 208, 0, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 208, 0, 0.4);">
-              <label for="regZoneCode" style="color: #ffd000; font-weight: 700;" data-i18n="zone_command">Destination / Zone Code</label>
-              <input type="text" id="regZoneCode" required placeholder="Enter destination zone code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
+              <label for="regZoneCode" style="color: #ffd000; font-weight: 700;" data-i18n="zone_code_label">Destination / Zone Code</label>
+              <input type="text" id="regZoneCode" required placeholder="Enter destination zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
             </div>
 
             <div class="form-group full-width">
               <label for="name" data-i18n="name_label">Full Name</label>
-              <input type="text" id="name" required placeholder="John Doe">
+              <input type="text" id="name" required placeholder="John Doe" data-i18n-placeholder="ph_name">
             </div>
 
             <div class="form-group">
               <label for="age" data-i18n="age_label">Age</label>
-              <input type="number" id="age" min="1" max="120" required placeholder="24">
+              <input type="number" id="age" min="1" max="120" required placeholder="24" data-i18n-placeholder="ph_age">
             </div>
 
             <div class="form-group">
@@ -627,32 +630,32 @@
 
             <div class="form-group">
               <label for="phone" data-i18n="phone_label">Phone Number</label>
-              <input type="tel" id="phone" required placeholder="+91 9876543210">
+              <input type="tel" id="phone" required placeholder="+91 9876543210" data-i18n-placeholder="ph_phone">
             </div>
 
             <div class="form-group">
               <label for="emergency1" data-i18n="emergency_contact_label">Primary Emergency Contact</label>
-              <input type="text" id="emergency1" required placeholder="Contact Name">
+              <input type="text" id="emergency1" required placeholder="Contact Name" data-i18n-placeholder="ph_contact_name">
             </div>
 
             <div class="form-group">
               <label for="emergencyPhone1" data-i18n="phone_label">Primary Emergency Phone</label>
-              <input type="tel" id="emergencyPhone1" required placeholder="+91 9876543211">
+              <input type="tel" id="emergencyPhone1" required placeholder="+91 9876543211" data-i18n-placeholder="ph_phone">
             </div>
 
             <div class="form-group">
               <label for="emergency2" data-i18n="emergency_contact_label">Secondary Contact (Optional)</label>
-              <input type="text" id="emergency2" placeholder="Contact Name">
+              <input type="text" id="emergency2" placeholder="Contact Name" data-i18n-placeholder="ph_contact_name">
             </div>
 
             <div class="form-group">
               <label for="emergencyPhone2" data-i18n="phone_label">Secondary Phone (Optional)</label>
-              <input type="tel" id="emergencyPhone2" placeholder="+91 9876543212">
+              <input type="tel" id="emergencyPhone2" placeholder="+91 9876543212" data-i18n-placeholder="ph_phone">
             </div>
 
             <div class="form-group full-width">
               <label for="homeAddress" data-i18n="stay_address_label">Address / Local Stay</label>
-              <textarea id="homeAddress" rows="2" required placeholder="Hotel or local residence"></textarea>
+              <textarea id="homeAddress" rows="2" required placeholder="Hotel or local residence" data-i18n-placeholder="ph_address"></textarea>
             </div>
 
             <div class="form-group full-width checkbox-group">
@@ -667,7 +670,7 @@
 
       <!-- 7. EDIT PROFILE MODAL WITH SELFIE UPDATER -->
       <section id="editProfileModal" class="glass-modal" style="display: none;">
-        <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
+        <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 data-i18n="edit_profile">Edit My Safety Profile</h2>
         <p class="form-subtitle" data-i18n="dashboard_desc">Update your personal details, preferred language, or refresh your live selfie.</p>
 
@@ -731,13 +734,13 @@
             </div>
 
             <div class="form-group full-width" style="background: rgba(56, 189, 248, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.4);">
-              <label for="editZoneCode" style="color: #38bdf8; font-weight: 700;" data-i18n="zone_command">Destination / Zone Code</label>
-              <input type="text" id="editZoneCode" required placeholder="Enter new zone code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
+              <label for="editZoneCode" style="color: #38bdf8; font-weight: 700;" data-i18n="zone_code_label">Destination / Zone Code</label>
+              <input type="text" id="editZoneCode" required placeholder="Enter new zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
             </div>
 
             <div class="form-group full-width">
               <label for="editName" data-i18n="name_label">Full Name</label>
-              <input type="text" id="editName" required placeholder="John Doe">
+              <input type="text" id="editName" required placeholder="John Doe" data-i18n-placeholder="ph_name">
             </div>
 
             <div class="form-group">
@@ -770,32 +773,32 @@
 
             <div class="form-group">
               <label for="editPhone" data-i18n="phone_label">Phone Number</label>
-              <input type="tel" id="editPhone" required placeholder="+91 9876543210">
+              <input type="tel" id="editPhone" required placeholder="+91 9876543210" data-i18n-placeholder="ph_phone">
             </div>
 
             <div class="form-group">
               <label for="editEmergency1" data-i18n="emergency_contact_label">Primary Emergency Contact</label>
-              <input type="text" id="editEmergency1" required placeholder="Contact Name">
+              <input type="text" id="editEmergency1" required placeholder="Contact Name" data-i18n-placeholder="ph_contact_name">
             </div>
 
             <div class="form-group">
               <label for="editEmergencyPhone1" data-i18n="phone_label">Primary Emergency Phone</label>
-              <input type="tel" id="editEmergencyPhone1" required placeholder="+91 9876543211">
+              <input type="tel" id="editEmergencyPhone1" required placeholder="+91 9876543211" data-i18n-placeholder="ph_phone">
             </div>
 
             <div class="form-group">
               <label for="editEmergency2" data-i18n="emergency_contact_label">Secondary Contact</label>
-              <input type="text" id="editEmergency2" placeholder="Contact Name">
+              <input type="text" id="editEmergency2" placeholder="Contact Name" data-i18n-placeholder="ph_contact_name">
             </div>
 
             <div class="form-group">
               <label for="editEmergencyPhone2" data-i18n="phone_label">Secondary Phone</label>
-              <input type="tel" id="editEmergencyPhone2" placeholder="+91 9876543212">
+              <input type="tel" id="editEmergencyPhone2" placeholder="+91 9876543212" data-i18n-placeholder="ph_phone">
             </div>
 
             <div class="form-group full-width">
               <label for="editHomeAddress" data-i18n="stay_address_label">Address / Local Stay</label>
-              <textarea id="editHomeAddress" rows="2" required placeholder="Hotel or stay details"></textarea>
+              <textarea id="editHomeAddress" rows="2" required placeholder="Hotel or stay details" data-i18n-placeholder="ph_address"></textarea>
             </div>
 
             <div class="form-group full-width checkbox-group" style="display: flex; gap: 20px;">
@@ -811,9 +814,9 @@
       <!-- 8. SUCCESS MESSAGE -->
       <section id="successPage" class="glass-modal status-card" style="display: none;">
         <div class="success-icon">✓</div>
-        <h2>Operation Complete</h2>
-        <p id="successMessage">Your Digital Safety ID is active and cryptographically signed.</p>
-        <button class="submit-btn" onclick="closeModal()">Return to Dashboard</button>
+        <h2 data-i18n="op_complete">Operation Complete</h2>
+        <p id="successMessage" data-i18n="passport_ready_msg">Your Digital Safety ID is active and cryptographically signed.</p>
+        <button class="submit-btn" onclick="closeModal()" data-i18n="return_dashboard">Return to Dashboard</button>
       </section>
 
     </div>
