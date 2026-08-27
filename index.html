@@ -31,7 +31,7 @@
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <!-- Global 22 Indian Languages Dropdown Selector -->
         <div class="lang-selector-wrapper">
-          <label for="globalLanguagePicker" style="font-size: 11px; opacity: 0.85;">🌐</label>
+          <label for="globalLanguagePicker" style="font-size: 13px; opacity: 0.95;">🌐</label>
           <select id="globalLanguagePicker" class="lang-dropdown" onchange="changeAppLanguage(this.value)">
             <option value="en">English</option>
             <option value="hi">हिन्दी (Hindi)</option>
@@ -311,16 +311,16 @@
           <table class="staff-table">
             <thead>
               <tr>
-                <th>Status</th>
-                <th>Selfie</th>
-                <th>Digital ID</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Phone</th>
-                <th>Blood Group</th>
-                <th>Emergency Contact</th>
-                <th>Home / Stay Address</th>
-                <th>Coordinates</th>
+                <th data-i18n="status_header">Status</th>
+                <th data-i18n="selfie_header">Selfie</th>
+                <th data-i18n="digital_id_header">Digital ID</th>
+                <th data-i18n="name_label">Name</th>
+                <th data-i18n="role_label">Role</th>
+                <th data-i18n="phone_label">Phone</th>
+                <th data-i18n="blood_group_label">Blood Group</th>
+                <th data-i18n="emergency_contact_label">Emergency Contact</th>
+                <th data-i18n="stay_address_label">Home / Stay Address</th>
+                <th data-i18n="coords_header">Coordinates</th>
               </tr>
             </thead>
             <tbody id="staffTableBody">
@@ -377,17 +377,17 @@
           <table class="staff-table">
             <thead>
               <tr>
-                <th>Destination Zone</th>
-                <th>Status</th>
-                <th>Selfie</th>
-                <th>Digital ID</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Phone</th>
-                <th>Blood Group</th>
-                <th>Emergency Contact</th>
-                <th>Address</th>
-                <th>Coordinates</th>
+                <th data-i18n="zone_command">Destination Zone</th>
+                <th data-i18n="status_header">Status</th>
+                <th data-i18n="selfie_header">Selfie</th>
+                <th data-i18n="digital_id_header">Digital ID</th>
+                <th data-i18n="name_label">Name</th>
+                <th data-i18n="role_label">Role</th>
+                <th data-i18n="phone_label">Phone</th>
+                <th data-i18n="blood_group_label">Blood Group</th>
+                <th data-i18n="emergency_contact_label">Emergency Contact</th>
+                <th data-i18n="stay_address_label">Address</th>
+                <th data-i18n="coords_header">Coordinates</th>
               </tr>
             </thead>
             <tbody id="superAdminTableBody">
@@ -457,7 +457,7 @@
         <button class="back-btn" onclick="closeModal()">✕ Close</button>
         <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px;">
           <img id="inspectSelfieImg" class="passport-photo-img" src="" alt="Selfie">
-          <h2 id="inspectModalName" style="margin: 0;">Digital Safety ID</h2>
+          <h2 id="inspectModalName" style="margin: 0;" data-i18n="official_passport">Digital Safety ID</h2>
         </div>
         <p class="form-subtitle">Scannable Real Identity & Medical Details (Location Excluded)</p>
         
@@ -476,7 +476,7 @@
         
         <form id="staffAuthForm">
           <div class="form-group">
-            <label for="staffZoneInput">Destination / Zone Code</label>
+            <label for="staffZoneInput" data-i18n="zone_command">Destination / Zone Code</label>
             <input type="text" id="staffZoneInput" required placeholder="Enter zone code" style="text-transform: uppercase;">
           </div>
           <div class="form-group" style="margin-top: 10px;">
@@ -515,7 +515,7 @@
         
         <form id="createZoneForm">
           <div class="form-group">
-            <label for="newZoneCode">Unique Destination Code</label>
+            <label for="newZoneCode" data-i18n="zone_command">Unique Destination Code</label>
             <input type="text" id="newZoneCode" required placeholder="e.g. MOUNT-PARK, BEACH-RESORT" style="text-transform: uppercase;">
           </div>
           <div class="form-group" style="margin-top: 10px;">
@@ -523,7 +523,7 @@
             <input type="text" id="newZoneName" required placeholder="e.g. Mountain Park Safety Grid">
           </div>
           <div class="form-group" style="margin-top: 10px;">
-            <label for="newZonePhone">Command Center Helpline Phone</label>
+            <label for="newZonePhone" data-i18n="phone_label">Command Center Helpline Phone</label>
             <input type="tel" id="newZonePhone" required placeholder="+91 9876543210">
           </div>
           <div class="form-group" style="margin-top: 10px;">
@@ -552,13 +552,13 @@
       <section id="registrationPage" class="glass-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()">✕ Close</button>
         <h2 id="registrationTitle" data-i18n="register_tourist">Registration</h2>
-        <p class="form-subtitle">Sync your details and take a live selfie for your Digital Safety ID.</p>
+        <p class="form-subtitle" data-i18n="register_tourist_desc">Sync your details and take a live selfie for your Digital Safety ID.</p>
 
         <form id="registrationForm">
           
           <!-- LIVE SELFIE CAMERA & HARDWARE CAPTURE BOX -->
           <div class="form-group full-width camera-section">
-            <label style="font-weight: 700; color: #38bdf8; font-size: 13px;">📸 Required: Live Selfie Verification</label>
+            <label style="font-weight: 700; color: #38bdf8; font-size: 13px;" data-i18n="selfie_req_title">📸 Required: Live Selfie Verification</label>
             
             <div class="camera-viewport-box">
               <video id="selfieVideo" autoplay playsinline class="camera-stream" style="display: none;"></video>
@@ -566,17 +566,17 @@
               <img id="selfiePreview" class="camera-preview-img" style="display: none;" alt="Captured Selfie">
               <div id="cameraPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 12px;">
                 <span style="font-size: 38px; margin-bottom: 4px;">🤳</span>
-                <span>Selfie Not Taken Yet</span>
+                <span data-i18n="selfie_placeholder">Selfie Not Taken Yet</span>
               </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
-              <button type="button" id="startCameraBtn" class="camera-action-btn" onclick="startLiveCamera('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'captureBtn', 'retakeBtn')">📷 Open Live Camera</button>
-              <button type="button" id="captureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('selfieVideo', 'selfieCanvas', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')">⚡ Take Snapshot</button>
-              <button type="button" id="retakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')">🔄 Retake</button>
+              <button type="button" id="startCameraBtn" class="camera-action-btn" onclick="startLiveCamera('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'captureBtn', 'retakeBtn')" data-i18n="open_live_cam">📷 Open Live Camera</button>
+              <button type="button" id="captureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('selfieVideo', 'selfieCanvas', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')" data-i18n="take_snapshot">⚡ Take Snapshot</button>
+              <button type="button" id="retakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')" data-i18n="retake_btn">🔄 Retake</button>
 
               <label class="camera-action-btn" style="background: #38bdf8; color: #022c0e; cursor: pointer; display: inline-flex; align-items: center;">
-                📱 Tap to Open Camera
+                <span data-i18n="tap_open_cam">📱 Tap to Open Camera</span>
                 <input type="file" id="nativeSelfieInput" accept="image/*" capture="user" style="display: none;" onchange="handleNativeSelfieCapture(event, 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'selfieVideo', 'captureBtn', 'retakeBtn')">
               </label>
             </div>
@@ -586,34 +586,34 @@
 
           <div class="form-grid" style="margin-top: 14px;">
             <div class="form-group full-width" style="background: rgba(255, 208, 0, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 208, 0, 0.4);">
-              <label for="regZoneCode" style="color: #ffd000; font-weight: 700;">Destination / Zone Code</label>
+              <label for="regZoneCode" style="color: #ffd000; font-weight: 700;" data-i18n="zone_command">Destination / Zone Code</label>
               <input type="text" id="regZoneCode" required placeholder="Enter destination zone code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
             </div>
 
             <div class="form-group full-width">
-              <label for="name">Full Name</label>
+              <label for="name" data-i18n="name_label">Full Name</label>
               <input type="text" id="name" required placeholder="John Doe">
             </div>
 
             <div class="form-group">
-              <label for="age">Age</label>
+              <label for="age" data-i18n="age_label">Age</label>
               <input type="number" id="age" min="1" max="120" required placeholder="24">
             </div>
 
             <div class="form-group">
-              <label for="gender">Gender</label>
+              <label for="gender" data-i18n="gender_label">Gender</label>
               <select id="gender" required>
-                <option value="" disabled selected>Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="" disabled selected data-i18n="select_option">Select</option>
+                <option value="Male" data-i18n="gender_male">Male</option>
+                <option value="Female" data-i18n="gender_female">Female</option>
+                <option value="Other" data-i18n="gender_other">Other</option>
               </select>
             </div>
 
             <div class="form-group">
               <label for="bloodGroup" data-i18n="blood_group_label">Blood Group</label>
               <select id="bloodGroup" required>
-                <option value="" disabled selected>Select</option>
+                <option value="" disabled selected data-i18n="select_option">Select</option>
                 <option value="A+">A+</option>
                 <option value="A-">A-</option>
                 <option value="B+">B+</option>
@@ -636,17 +636,17 @@
             </div>
 
             <div class="form-group">
-              <label for="emergencyPhone1">Primary Emergency Phone</label>
+              <label for="emergencyPhone1" data-i18n="phone_label">Primary Emergency Phone</label>
               <input type="tel" id="emergencyPhone1" required placeholder="+91 9876543211">
             </div>
 
             <div class="form-group">
-              <label for="emergency2">Secondary Contact (Optional)</label>
+              <label for="emergency2" data-i18n="emergency_contact_label">Secondary Contact (Optional)</label>
               <input type="text" id="emergency2" placeholder="Contact Name">
             </div>
 
             <div class="form-group">
-              <label for="emergencyPhone2">Secondary Phone (Optional)</label>
+              <label for="emergencyPhone2" data-i18n="phone_label">Secondary Phone (Optional)</label>
               <input type="tel" id="emergencyPhone2" placeholder="+91 9876543212">
             </div>
 
@@ -657,11 +657,11 @@
 
             <div class="form-group full-width checkbox-group">
               <input type="checkbox" id="additionalRole">
-              <label for="additionalRole" id="additionalRoleText">Dual registration option</label>
+              <label for="additionalRole" id="additionalRoleText" data-i18n="dual_reg">Dual registration option</label>
             </div>
           </div>
 
-          <button type="submit" class="submit-btn" id="regSubmitBtn">Complete Registration & Mine to Blockchain</button>
+          <button type="submit" class="submit-btn" id="regSubmitBtn" data-i18n="complete_reg_btn">Complete Registration & Mine to Blockchain</button>
         </form>
       </section>
 
@@ -669,14 +669,14 @@
       <section id="editProfileModal" class="glass-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()">✕ Cancel</button>
         <h2 data-i18n="edit_profile">Edit My Safety Profile</h2>
-        <p class="form-subtitle">Update your personal details, preferred language, or refresh your live selfie.</p>
+        <p class="form-subtitle" data-i18n="dashboard_desc">Update your personal details, preferred language, or refresh your live selfie.</p>
 
         <form id="editProfileForm">
           <input type="hidden" id="editProfileId">
           <input type="hidden" id="editCapturedSelfieData">
           
           <div class="form-group full-width camera-section">
-            <label style="font-weight: 700; color: #38bdf8;">📸 Update Profile Selfie</label>
+            <label style="font-weight: 700; color: #38bdf8;" data-i18n="selfie_req_title">📸 Update Profile Selfie</label>
             
             <div class="camera-viewport-box">
               <video id="editSelfieVideo" autoplay playsinline class="camera-stream" style="display: none;"></video>
@@ -684,17 +684,17 @@
               <img id="editSelfiePreview" class="camera-preview-img" style="display: none;" alt="Current Selfie">
               <div id="editCameraPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 12px;">
                 <span style="font-size: 38px; margin-bottom: 4px;">🤳</span>
-                <span>Current Selfie Preview</span>
+                <span data-i18n="selfie_placeholder">Current Selfie Preview</span>
               </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
-              <button type="button" id="editStartCameraBtn" class="camera-action-btn" onclick="startLiveCamera('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCaptureBtn', 'editRetakeBtn')">📷 Open Live Camera</button>
-              <button type="button" id="editCaptureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('editSelfieVideo', 'editSelfieCanvas', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')">⚡ Take Snapshot</button>
-              <button type="button" id="editRetakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')">🔄 Retake</button>
+              <button type="button" id="editStartCameraBtn" class="camera-action-btn" onclick="startLiveCamera('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="open_live_cam">📷 Open Live Camera</button>
+              <button type="button" id="editCaptureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('editSelfieVideo', 'editSelfieCanvas', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="take_snapshot">⚡ Take Snapshot</button>
+              <button type="button" id="editRetakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="retake_btn">🔄 Retake</button>
               
               <label class="camera-action-btn" style="background: #38bdf8; color: #022c0e; cursor: pointer; display: inline-flex; align-items: center;">
-                📱 Tap to Open Camera
+                <span data-i18n="tap_open_cam">📱 Tap to Open Camera</span>
                 <input type="file" id="editNativeSelfieInput" accept="image/*" capture="user" style="display: none;" onchange="handleNativeSelfieCapture(event, 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editSelfieVideo', 'editCaptureBtn', 'editRetakeBtn')">
               </label>
             </div>
@@ -702,7 +702,7 @@
 
           <div class="form-grid" style="margin-top: 14px;">
             <div class="form-group full-width">
-              <label for="editPreferredLanguage" style="color: #38bdf8; font-weight: 700;">🌐 Choose Language (All 22 Official Indian Languages)</label>
+              <label for="editPreferredLanguage" style="color: #38bdf8; font-weight: 700;" data-i18n="lang_select_label">🌐 Choose Language (All 22 Official Indian Languages)</label>
               <select id="editPreferredLanguage" required style="border-color: #38bdf8;">
                 <option value="en">English</option>
                 <option value="hi">हिन्दी (Hindi)</option>
@@ -731,26 +731,26 @@
             </div>
 
             <div class="form-group full-width" style="background: rgba(56, 189, 248, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.4);">
-              <label for="editZoneCode" style="color: #38bdf8; font-weight: 700;">Destination / Zone Code</label>
+              <label for="editZoneCode" style="color: #38bdf8; font-weight: 700;" data-i18n="zone_command">Destination / Zone Code</label>
               <input type="text" id="editZoneCode" required placeholder="Enter new zone code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
             </div>
 
             <div class="form-group full-width">
-              <label for="editName">Full Name</label>
+              <label for="editName" data-i18n="name_label">Full Name</label>
               <input type="text" id="editName" required placeholder="John Doe">
             </div>
 
             <div class="form-group">
-              <label for="editAge">Age</label>
+              <label for="editAge" data-i18n="age_label">Age</label>
               <input type="number" id="editAge" min="1" max="120" required>
             </div>
 
             <div class="form-group">
-              <label for="editGender">Gender</label>
+              <label for="editGender" data-i18n="gender_label">Gender</label>
               <select id="editGender" required>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="Male" data-i18n="gender_male">Male</option>
+                <option value="Female" data-i18n="gender_female">Female</option>
+                <option value="Other" data-i18n="gender_other">Other</option>
               </select>
             </div>
 
@@ -779,17 +779,17 @@
             </div>
 
             <div class="form-group">
-              <label for="editEmergencyPhone1">Primary Emergency Phone</label>
+              <label for="editEmergencyPhone1" data-i18n="phone_label">Primary Emergency Phone</label>
               <input type="tel" id="editEmergencyPhone1" required placeholder="+91 9876543211">
             </div>
 
             <div class="form-group">
-              <label for="editEmergency2">Secondary Contact</label>
+              <label for="editEmergency2" data-i18n="emergency_contact_label">Secondary Contact</label>
               <input type="text" id="editEmergency2" placeholder="Contact Name">
             </div>
 
             <div class="form-group">
-              <label for="editEmergencyPhone2">Secondary Phone</label>
+              <label for="editEmergencyPhone2" data-i18n="phone_label">Secondary Phone</label>
               <input type="tel" id="editEmergencyPhone2" placeholder="+91 9876543212">
             </div>
 
@@ -799,12 +799,12 @@
             </div>
 
             <div class="form-group full-width checkbox-group" style="display: flex; gap: 20px;">
-              <label><input type="checkbox" id="editIsTourist"> Registered as Tourist</label>
-              <label><input type="checkbox" id="editIsVolunteer"> Registered as Volunteer</label>
+              <label><input type="checkbox" id="editIsTourist"> <span data-i18n="register_tourist">Registered as Tourist</span></label>
+              <label><input type="checkbox" id="editIsVolunteer"> <span data-i18n="register_volunteer">Registered as Volunteer</span></label>
             </div>
           </div>
 
-          <button type="submit" class="submit-btn" id="editSubmitBtn" style="background: #38bdf8; color: #022c0e; font-weight: 700;">💾 Update Profile & Append Blockchain Block</button>
+          <button type="submit" class="submit-btn" id="editSubmitBtn" style="background: #38bdf8; color: #022c0e; font-weight: 700;" data-i18n="update_save_btn">💾 Update Profile & Append Blockchain Block</button>
         </form>
       </section>
 
