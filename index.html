@@ -3,25 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tourist Safety Command Network - Blockchain Edition</title>
+  <title>Tourist Safety Command Network - Minimal Edition</title>
   
-  <!-- Leaflet.js Assets -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   
-  <!-- High Performance Client-Side QR Generator -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   
   <link rel="stylesheet" href="styles.css">
   <script type="module" src="script.js" defer></script>
 </head>
 <body>
-  <div class="bg-plane active" id="bgPlaneA"></div>
-  <div class="bg-plane" id="bgPlaneB"></div>
 
   <div class="website">
     
-    <!-- Navigation Bar -->
     <nav class="navbar">
       <div class="brand" onclick="switchPortal('portalGateway')">
         <div class="brand-icon">TS</div>
@@ -31,10 +26,9 @@
         </div>
       </div>
       
-      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <!-- Global 22 Indian Languages Dropdown Selector -->
+      <div class="nav-controls">
         <div class="lang-selector-wrapper">
-          <label for="globalLanguagePicker" style="font-size: 13px; opacity: 0.95;">🌐</label>
+          <span>🌐</span>
           <select id="globalLanguagePicker" class="lang-dropdown" onchange="changeAppLanguage(this.value)">
             <option value="en">English</option>
             <option value="hi">हिन्दी (Hindi)</option>
@@ -62,22 +56,21 @@
           </select>
         </div>
         <div class="nav-links">
-          <a href="#" onclick="switchPortal('portalGateway')" data-i18n="switch_portal">Switch Portal</a>
+          <button class="nav-btn" onclick="switchPortal('portalGateway')" data-i18n="switch_portal">Switch Portal</button>
         </div>
       </div>
     </nav>
 
-    <!-- VIEW 0: ENTRY GATEWAY -->
     <main id="portalGateway" class="page-view">
       <section class="hero">
         <div class="hero-content">
-          <div class="heritage-mark" data-i18n="hero_heritage">MULTI-DESTINATION GEOFENCE & RESCUE GRID</div>
-          <h1><span data-i18n="access_control">Access Control</span><br><span data-i18n="system">System</span></h1>
+          <div class="tag-pill" data-i18n="hero_heritage">MULTI-DESTINATION GEOFENCE & RESCUE GRID</div>
+          <h1><span data-i18n="access_control">Access Control</span> <span data-i18n="system">System</span></h1>
           <p data-i18n="select_auth">Select your access authorization level to enter the safety grid.</p>
         </div>
 
-        <div class="action-container action-container-3card" style="max-width: 1050px;">
-          <button class="glass-card entry-card" onclick="enterUserMode()">
+        <div class="action-container action-container-3card">
+          <button class="solid-card entry-card" onclick="enterUserMode()">
             <div class="card-icon tourist-icon">U</div>
             <div class="card-content">
               <small data-i18n="public_entry">PUBLIC ENTRY</small>
@@ -87,7 +80,7 @@
             <span class="arrow">→</span>
           </button>
 
-          <button class="glass-card entry-card staff-card" onclick="openStaffModal()">
+          <button class="solid-card entry-card staff-card" onclick="openStaffModal()">
             <div class="card-icon staff-icon">⚡</div>
             <div class="card-content">
               <small data-i18n="zone_authority">ZONE AUTHORITY</small>
@@ -97,7 +90,7 @@
             <span class="arrow">🔒</span>
           </button>
 
-          <button class="glass-card entry-card superadmin-card" onclick="openSuperAdminModal()">
+          <button class="solid-card entry-card superadmin-card" onclick="openSuperAdminModal()">
             <div class="card-icon superadmin-icon">👑</div>
             <div class="card-content">
               <small data-i18n="head_of_platform">HEAD OF PLATFORM</small>
@@ -110,19 +103,17 @@
       </section>
     </main>
 
-    <!-- VIEW 1: USER DASHBOARD -->
     <main id="userPortal" class="page-view" style="display: none;">
       <section class="hero">
         <div class="hero-content">
-          <div class="heritage-mark" data-i18n="hero_heritage">NATURE • HERITAGE • SAFETY</div>
-          <h1><span data-i18n="tourist_dashboard">Tourist Safety</span><br><span data-i18n="dashboard_subtitle">Dashboard</span></h1>
+          <div class="tag-pill" data-i18n="hero_heritage">NATURE • HERITAGE • SAFETY</div>
+          <h1><span data-i18n="tourist_dashboard">Tourist Safety</span> <span data-i18n="dashboard_subtitle">Dashboard</span></h1>
           <p data-i18n="dashboard_desc">Explore safely within certified destination boundaries with your verified Digital Safety ID.</p>
         </div>
 
-        <!-- 1A: Logged Out Section -->
         <div id="loggedOutSection" class="user-state-container">
           <div class="action-container action-container-3card">
-            <button class="glass-card" onclick="openRegistration('tourist')">
+            <button class="solid-card" onclick="openRegistration('tourist')">
               <div class="card-icon tourist-icon">T</div>
               <div class="card-content">
                 <small data-i18n="public_entry">EXPLORE SAFELY</small>
@@ -132,7 +123,7 @@
               <span class="arrow">→</span>
             </button>
 
-            <button class="glass-card" onclick="openRegistration('volunteer')">
+            <button class="solid-card" onclick="openRegistration('volunteer')">
               <div class="card-icon volunteer-icon">V</div>
               <div class="card-content">
                 <small data-i18n="zone_authority">HELP OTHERS</small>
@@ -142,7 +133,7 @@
               <span class="arrow">→</span>
             </button>
 
-            <button class="glass-card signin-card" onclick="openSignInModal()">
+            <button class="solid-card signin-card" onclick="openSignInModal()">
               <div class="card-icon signin-icon">🔑</div>
               <div class="card-content">
                 <small data-i18n="signin_phone">RETURNING USER</small>
@@ -154,28 +145,26 @@
           </div>
         </div>
 
-        <!-- 1B: Logged In Section -->
         <div id="loggedInSection" class="user-state-container" style="display: none; width: 100%; max-width: 680px;">
           <div class="session-badge">
             <div class="badge-text">
-              <small><span data-i18n="active_zone_badge_label">ACTIVE DESTINATION ZONE:</span> <span id="activeUserZoneCodeBadge" style="color: #ffd000; font-weight: 700;">--</span></small>
+              <small><span data-i18n="active_zone_badge_label">ACTIVE DESTINATION ZONE:</span> <span id="activeUserZoneCodeBadge" class="highlight-text">--</span></small>
               <div><strong><span id="activeUserName">--</span></strong> (<span id="activeUserRole">--</span>)</div>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="switch-user-btn" style="background: rgba(56, 189, 248, 0.25); border-color: #38bdf8;" onclick="openEditOwnProfileModal()" data-i18n="edit_profile">✏️ Edit Profile</button>
-              <button class="switch-user-btn" onclick="signOutCurrentUser()" data-i18n="log_out">Log Out</button>
+              <button class="solid-btn btn-secondary" onclick="openEditOwnProfileModal()" data-i18n="edit_profile">✏️ Edit Profile</button>
+              <button class="solid-btn btn-danger" onclick="signOutCurrentUser()" data-i18n="log_out">Log Out</button>
             </div>
           </div>
 
-          <!-- Digital Safety ID Passport Card with Live Selfie -->
           <div class="digital-id-card">
             <div class="digital-id-header">
               <div style="display:flex; align-items:center; gap: 14px;">
                 <img id="passportSelfiePhoto" class="passport-photo-img" src="" alt="Profile Selfie">
                 <div>
-                  <small style="color: #ffd000; letter-spacing: 1.5px; font-weight: 700;" data-i18n="official_passport">OFFICIAL DIGITAL SAFETY PASSPORT</small>
-                  <h3 id="digitalIdName" style="margin-top: 2px; font-size: 20px;">Tourist Name</h3>
-                  <span id="digitalIdRole" style="font-size: 12px; opacity: 0.85;">Tourist • A+</span>
+                  <small class="card-eyebrow" data-i18n="official_passport">OFFICIAL DIGITAL SAFETY PASSPORT</small>
+                  <h3 id="digitalIdName">Tourist Name</h3>
+                  <span id="digitalIdRole" class="sub-detail">Tourist • A+</span>
                 </div>
               </div>
               <div class="id-badge-chip" data-i18n="verified">VERIFIED</div>
@@ -188,27 +177,24 @@
                 <div><strong data-i18n="blood_group_label">Blood Group:</strong> <span id="idBlood">--</span></div>
                 <div><strong data-i18n="emergency_contact_label">Emergency Contact:</strong> <span id="idEmergency">--</span></div>
                 <div><strong data-i18n="stay_address_label">Stay / Address:</strong> <span id="idAddress">--</span></div>
-                <small style="opacity: 0.7; font-size: 11px; display: block; margin-top: 6px;" data-i18n="qr_hint">💡 Real scannable data for emergency and offline ID verification.</small>
+                <small class="muted-note" data-i18n="qr_hint">💡 Real scannable data for emergency and offline ID verification.</small>
               </div>
             </div>
           </div>
 
-          <!-- Geofence Indicator Banner -->
-          <div id="touristGeofenceBanner" class="geofence-status-banner" style="margin-top: 15px;">
+          <div id="touristGeofenceBanner" class="geofence-status-banner">
             <span class="geofence-indicator-dot safe"></span>
-            <div style="text-align: left;">
+            <div>
               <strong id="geofenceStatusTitle" data-i18n="inside_safe_zone">Inside Safe Zone</strong>
-              <small id="geofenceStatusDesc" style="display: block; opacity: 0.85;" data-i18n="safe_perimeter_desc">Certified tourist perimeter monitored by local command center.</small>
+              <small id="geofenceStatusDesc" data-i18n="safe_perimeter_desc">Certified tourist perimeter monitored by local command center.</small>
             </div>
           </div>
 
-          <!-- Tourist Overview Map -->
-          <div id="touristOverviewMapBox" style="width: 100%; margin-top: 10px;">
-            <div id="touristOverviewMap" class="whatsapp-live-map-window" style="height: 220px;"></div>
+          <div id="touristOverviewMapBox" style="width: 100%; margin-top: 14px;">
+            <div id="touristOverviewMap" class="solid-map-window" style="height: 220px;"></div>
           </div>
 
-          <!-- Victim Live Aid Notification Box -->
-          <div id="victimRadarWrapper" class="victim-aid-status-box" style="display: none; flex-direction: column; align-items: center;">
+          <div id="victimRadarWrapper" class="victim-aid-status-box" style="display: none;">
             <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
               <div class="aid-pulse-dot"></div>
               <div>
@@ -216,12 +202,10 @@
                 <p id="victimAidDetails" data-i18n="assistance_dispatched_desc">Help has been dispatched to your location.</p>
               </div>
             </div>
-
-            <div id="victimLiveMap" class="whatsapp-live-map-window"></div>
+            <div id="victimLiveMap" class="solid-map-window" style="margin-top: 12px; height: 180px;"></div>
             <div id="victimResponderContacts" class="victim-contacts-list"></div>
           </div>
 
-          <!-- SOS Trigger -->
           <div class="sos-wrapper">
             <button id="sosBtn" class="sos-button" onclick="handleSOSToggle()">
               <div class="sos-symbol">!</div>
@@ -233,7 +217,6 @@
             </button>
           </div>
 
-          <!-- Self Opt-Out Button -->
           <div class="opt-out-wrapper">
             <button class="opt-out-btn" onclick="handleSelfOptOut()" data-i18n="leave_zone">
               <span>✕</span> Leave Event Zone & Purge My Telemetry
@@ -244,18 +227,17 @@
       </section>
     </main>
 
-    <!-- VIEW 2: STAFF DASHBOARD -->
     <main id="staffPortal" class="page-view" style="display: none;">
       <section class="staff-dashboard">
         <div class="staff-header">
           <div>
-            <h2><span data-i18n="zone_command">Zone Command:</span> <span id="staffZoneDisplayHeader" style="color: #ffd000;">--</span></h2>
+            <h2><span data-i18n="zone_command">Zone Command:</span> <span id="staffZoneDisplayHeader" class="highlight-text">--</span></h2>
             <p data-i18n="staff_command_desc">Live safety monitoring, geofence boundary editor & Digital ID reader</p>
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button class="refresh-btn" onclick="loadStaffMonitoringData()" data-i18n="refresh">↻ Refresh</button>
-            <button class="switch-user-btn" onclick="exitStaffPortal()" data-i18n="logout_hq">Log Out HQ</button>
-            <button class="switch-user-btn delete-zone-btn" onclick="handleDeleteCommandCenter()" data-i18n="delete_zone_btn">🗑️ Delete Zone</button>
+            <button class="solid-btn btn-primary" onclick="loadStaffMonitoringData()" data-i18n="refresh">↻ Refresh</button>
+            <button class="solid-btn btn-secondary" onclick="exitStaffPortal()" data-i18n="logout_hq">Log Out HQ</button>
+            <button class="solid-btn btn-danger" onclick="handleDeleteCommandCenter()" data-i18n="delete_zone_btn">🗑️ Delete Zone</button>
           </div>
         </div>
 
@@ -278,30 +260,27 @@
           </div>
         </div>
 
-        <!-- Safe Zone Boundary Editor -->
-        <div class="responders-live-panel" style="margin-bottom: 20px;">
+        <div class="panel-box">
           <div class="panel-header">
             <strong data-i18n="safe_zone_editor">🗺️ Safe Zone Geofence Editor (Shaded Green Region)</strong>
-            <span id="currentRadiusBadge" style="background: rgba(52, 211, 153, 0.3); color: #6ee7b7; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700;">Radius: 2.5 km</span>
+            <span id="currentRadiusBadge" class="pill-badge green">Radius: 2.5 km</span>
           </div>
           
-          <div style="margin: 10px 0; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-            <label for="geofenceRadiusSlider" style="font-size: 13px;" data-i18n="adjust_radius">Adjust Perimeter Radius:</label>
-            <input type="range" id="geofenceRadiusSlider" min="0.5" max="15" step="0.5" value="2.5" style="flex: 1; max-width: 250px;" oninput="updateGeofenceRadiusFromSlider(this.value)">
-            <button class="table-action-edit-btn" style="background: #22c55e; color: #022c0e; font-weight: 700;" onclick="saveGeofenceConfiguration()" data-i18n="save_geofence">💾 Save Geofence Boundary</button>
+          <div class="slider-control-row">
+            <label for="geofenceRadiusSlider" data-i18n="adjust_radius">Adjust Perimeter Radius:</label>
+            <input type="range" id="geofenceRadiusSlider" min="0.5" max="15" step="0.5" value="2.5" oninput="updateGeofenceRadiusFromSlider(this.value)">
+            <button class="solid-btn btn-success" onclick="saveGeofenceConfiguration()" data-i18n="save_geofence">💾 Save Geofence Boundary</button>
           </div>
 
-          <div id="staffGeofenceEditorMap" class="whatsapp-live-map-window" style="height: 260px;"></div>
+          <div id="staffGeofenceEditorMap" class="solid-map-window" style="height: 260px;"></div>
         </div>
 
-        <!-- Dispatch Queue -->
         <div id="commandDispatchQueue" class="command-dispatch-queue" style="display: none;"></div>
 
-        <!-- Multi-Case Live Maps -->
-        <div class="responders-live-panel" id="respondersLivePanel">
+        <div class="panel-box">
           <div class="panel-header">
             <strong data-i18n="field_deployment">⚡ Field Deployment & Live Location Tracker</strong>
-            <span id="responderCountBadge">0 Responders En Route</span>
+            <span id="responderCountBadge" class="pill-badge blue">0 Responders En Route</span>
           </div>
           <div id="staffMultiRadarGrid" class="multi-radar-grid" style="display: none;"></div>
           <div class="panel-content" id="respondersList" style="margin-top: 10px;">
@@ -309,9 +288,8 @@
           </div>
         </div>
 
-        <!-- Staff Table with Selfie & Digital ID Column -->
         <div class="table-wrapper">
-          <table class="staff-table">
+          <table class="solid-table">
             <thead>
               <tr>
                 <th data-i18n="status_header">Status</th>
@@ -334,7 +312,6 @@
       </section>
     </main>
 
-    <!-- VIEW 3: MASTER OVERVIEW & BLOCKCHAIN EXPLORER (SUPER ADMIN) -->
     <main id="superAdminPortal" class="page-view" style="display: none;">
       <section class="staff-dashboard">
         <div class="staff-header">
@@ -343,8 +320,8 @@
             <p data-i18n="master_control_desc">Immutable cryptographic distributed ledger of all tourist safety logs and cross-destination telemetry.</p>
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button class="refresh-btn" onclick="loadSuperAdminMatrix()" data-i18n="refresh">↻ Refresh All</button>
-            <button class="switch-user-btn" onclick="exitSuperAdminPortal()" data-i18n="log_out">Log Out Head</button>
+            <button class="solid-btn btn-primary" onclick="loadSuperAdminMatrix()" data-i18n="refresh">↻ Refresh All</button>
+            <button class="solid-btn btn-secondary" onclick="exitSuperAdminPortal()" data-i18n="log_out">Log Out Head</button>
           </div>
         </div>
 
@@ -355,7 +332,7 @@
           </div>
           <div class="metric-box">
             <span data-i18n="blockchain_blocks_label">Blockchain Blocks</span>
-            <strong id="saBlocksCount" style="color: #38bdf8;">0</strong>
+            <strong id="saBlocksCount" style="color: #60a5fa;">0</strong>
           </div>
           <div class="metric-box">
             <span data-i18n="active_tourists">Global Tourists</span>
@@ -367,17 +344,16 @@
           </div>
         </div>
 
-        <!-- Blockchain Ledger Visualizer -->
-        <div class="responders-live-panel" style="border-color: #38bdf8; background: rgba(56, 189, 248, 0.08);">
+        <div class="panel-box">
           <div class="panel-header">
-            <strong style="color: #38bdf8;" data-i18n="blockchain_ledger_title">🔗 Immutable Cryptographic Blockchain Ledger</strong>
-            <span id="blockchainStatusBadge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800;" data-i18n="verified">VERIFIED VALID</span>
+            <strong style="color: #60a5fa;" data-i18n="blockchain_ledger_title">🔗 Immutable Cryptographic Blockchain Ledger</strong>
+            <span id="blockchainStatusBadge" class="pill-badge green" data-i18n="verified">VERIFIED VALID</span>
           </div>
-          <div id="blockchainCardsGrid" class="blockchain-ledger-container" style="display: flex; gap: 12px; overflow-x: auto; padding: 10px 0;"></div>
+          <div id="blockchainCardsGrid" class="blockchain-ledger-container"></div>
         </div>
 
         <div class="table-wrapper" style="margin-top: 20px;">
-          <table class="staff-table">
+          <table class="solid-table">
             <thead>
               <tr>
                 <th data-i18n="zone_command">Destination Zone</th>
@@ -401,7 +377,6 @@
       </section>
     </main>
 
-    <!-- VOLUNTEER RAPID DISPATCH HUD -->
     <div id="volunteerHudWidget" class="volunteer-hud" style="display: none;">
       <div id="hudDispatchPrompt">
         <div class="hud-header">
@@ -410,8 +385,8 @@
         </div>
         <p id="hudPromptText">A person in your destination zone has triggered an active SOS! Can you assist?</p>
         <div class="hud-actions">
-          <button class="hud-btn hud-yes-btn" onclick="acceptRescueMission()" data-i18n="yes_assist">✓ YES, ASSIST</button>
-          <button class="hud-btn hud-no-btn" onclick="declineRescueMission()" data-i18n="no_decline">✕ NO</button>
+          <button class="solid-btn btn-success" onclick="acceptRescueMission()" data-i18n="yes_assist">✓ YES, ASSIST</button>
+          <button class="solid-btn btn-secondary" onclick="declineRescueMission()" data-i18n="no_decline">✕ NO</button>
         </div>
       </div>
 
@@ -420,10 +395,8 @@
           <strong data-i18n="field_deployment">ZONE LIVE TRACKER</strong>
           <button class="hud-close-btn" onclick="closeCompassView()">✕</button>
         </div>
-        
-        <div id="volunteerLiveMap" class="whatsapp-live-map-window" style="height: 180px; margin: 8px 0;"></div>
+        <div id="volunteerLiveMap" class="solid-map-window" style="height: 180px; margin: 8px 0;"></div>
         <div id="volunteerActionControls" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;"></div>
-
         <div class="compass-telemetry">
           <div>Distance: <strong id="compassDistance">--</strong></div>
           <div>Bearing: <strong id="compassBearing">0°</strong></div>
@@ -431,32 +404,29 @@
       </div>
     </div>
 
-    <!-- 20-MINUTE GEOFENCE SAFETY CHECK-IN -->
     <div id="safetyCheckinModal" class="modal-overlay" style="display: none; z-index: 2000;">
-      <div class="glass-modal" style="max-width: 440px; text-align: center; border-color: #ffd000; box-shadow: 0 0 40px rgba(255, 208, 0, 0.4);">
-        <div style="font-size: 40px; margin-bottom: 6px;">⚠️</div>
-        <h2 style="color: #ffd000; font-size: 22px;" data-i18n="outside_safe_zone">Safe Zone Boundary Alert</h2>
-        <p id="checkinContextText" style="margin: 14px 0; font-size: 14px; line-height: 1.5; color: #fef08a;">
+      <div class="solid-modal" style="max-width: 440px; text-align: center; border-color: #eab308;">
+        <div style="font-size: 36px; margin-bottom: 6px;">⚠️</div>
+        <h2 style="color: #eab308; font-size: 20px;" data-i18n="outside_safe_zone">Safe Zone Boundary Alert</h2>
+        <p id="checkinContextText" style="margin: 12px 0; font-size: 13.5px; line-height: 1.5; color: #fef08a;">
           You are currently outside the certified safe tourist zone.
         </p>
         
-        <div style="background: rgba(0,0,0,0.5); padding: 14px; border-radius: 14px; margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.15);">
-          <small style="color: #ffffff; opacity: 0.85; display: block; font-size: 11px; letter-spacing: 1px;">AUTO-SOS BROADCAST IN:</small>
-          <div id="checkinCountdown" style="font-size: 38px; font-weight: 800; font-family: monospace; color: #ff4d4d; margin-top: 4px;">60s</div>
+        <div class="countdown-box">
+          <small style="opacity: 0.85; font-size: 11px;">AUTO-SOS BROADCAST IN:</small>
+          <div id="checkinCountdown" class="countdown-text">60s</div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <button class="submit-btn" style="margin: 0; background: #22c55e; color: #022c0e; font-weight: 700; font-size: 14px;" onclick="dismissSafetyCheckin(true)" data-i18n="safe_chilling">✓ I'm Safe / Chilling</button>
-          <button class="submit-btn" style="margin: 0; background: #ef4444; color: #fff; font-weight: 700; font-size: 14px;" onclick="dismissSafetyCheckin(false)" data-i18n="need_help">🚨 I Need Help</button>
+          <button class="solid-btn btn-success" onclick="dismissSafetyCheckin(true)" data-i18n="safe_chilling">✓ I'm Safe / Chilling</button>
+          <button class="solid-btn btn-danger" onclick="dismissSafetyCheckin(false)" data-i18n="need_help">🚨 I Need Help</button>
         </div>
       </div>
     </div>
 
-    <!-- MODAL OVERLAYS -->
     <div id="modalOverlay" class="modal-overlay" style="display: none;">
       
-      <!-- 1. DIGITAL ID QR MODAL POPUP -->
-      <section id="qrInspectionModal" class="glass-modal" style="display: none; max-width: 440px; text-align: center;">
+      <section id="qrInspectionModal" class="solid-modal" style="display: none; max-width: 440px; text-align: center;">
         <button class="back-btn" onclick="closeModal()" data-i18n="close_btn">✕ Close</button>
         <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px;">
           <img id="inspectSelfieImg" class="passport-photo-img" src="" alt="Selfie">
@@ -465,14 +435,13 @@
         <p class="form-subtitle">Scannable Real Identity & Medical Details (Location Excluded)</p>
         
         <div style="display: flex; justify-content: center; margin: 15px 0;">
-          <div id="inspectQRCodeContainer" class="qr-code-box" style="background: #ffffff; padding: 12px; border-radius: 14px;"></div>
+          <div id="inspectQRCodeContainer" class="qr-code-box"></div>
         </div>
 
-        <div id="inspectQRTextDetails" style="text-align: left; background: rgba(0,0,0,0.4); padding: 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; border: 1px solid rgba(255,255,255,0.15);"></div>
+        <div id="inspectQRTextDetails" class="code-details-box"></div>
       </section>
 
-      <!-- 2. STAFF LOGIN -->
-      <section id="staffPasscodeModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
+      <section id="staffPasscodeModal" class="solid-modal auth-modal" style="display: none; max-width: 440px;">
         <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 data-i18n="staff_command">Staff Command Login</h2>
         <p class="form-subtitle" data-i18n="staff_command_desc">Enter your destination zone code and passcode.</p>
@@ -486,19 +455,17 @@
             <label for="staffPasscodeInput" data-i18n="admin_passcode_label">Passcode</label>
             <input type="password" id="staffPasscodeInput" required placeholder="Enter zone passcode" data-i18n-placeholder="ph_passcode">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;" data-i18n="login_command_btn">Login to Command Center</button>
+          <button type="submit" class="solid-btn btn-primary full-width" style="margin-top: 15px;" data-i18n="login_command_btn">Login to Command Center</button>
         </form>
 
-        <div style="margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 14px; text-align: center;">
-          <small style="opacity: 0.8;">Need to establish a new destination zone?</small><br>
-          <button type="button" class="switch-user-btn" style="margin-top: 6px;" onclick="openCreateZoneModal()" data-i18n="reg_new_zone_btn">+ Register New Destination Zone</button>
+        <div style="margin-top: 18px; border-top: 1px solid #27272a; padding-top: 14px; text-align: center;">
+          <button type="button" class="solid-btn btn-secondary full-width" onclick="openCreateZoneModal()" data-i18n="reg_new_zone_btn">+ Register New Destination Zone</button>
         </div>
       </section>
 
-      <!-- 3. MASTER HEAD LOGIN -->
-      <section id="superAdminAuthModal" class="glass-modal auth-modal" style="display: none; max-width: 440px; border-color: #ffd000;">
+      <section id="superAdminAuthModal" class="solid-modal auth-modal" style="display: none; max-width: 440px; border-color: #eab308;">
         <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
-        <h2 style="color: #ffd000;" data-i18n="master_control">Website Head Login</h2>
+        <h2 style="color: #eab308;" data-i18n="master_control">Website Head Login</h2>
         <p class="form-subtitle" data-i18n="master_control_desc">Enter Master Admin Passcode for global oversight across all zones.</p>
         
         <form id="superAdminAuthForm">
@@ -506,12 +473,11 @@
             <label for="superAdminPasscodeInput" data-i18n="master_passcode_label">Master Passcode (Default: SUPERADMIN2026)</label>
             <input type="password" id="superAdminPasscodeInput" required placeholder="Enter Master Passcode" data-i18n-placeholder="ph_passcode">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #ffd000; color: #000; font-weight: 700;" data-i18n="auth_master_btn">Authorize Master Access</button>
+          <button type="submit" class="solid-btn btn-warning full-width" style="margin-top: 15px;" data-i18n="auth_master_btn">Authorize Master Access</button>
         </form>
       </section>
 
-      <!-- 4. CREATE NEW DESTINATION ZONE (100% Fully Bound & Translated) -->
-      <section id="createZoneModal" class="glass-modal auth-modal" style="display: none; max-width: 440px;">
+      <section id="createZoneModal" class="solid-modal auth-modal" style="display: none; max-width: 440px;">
         <button class="back-btn" onclick="openStaffModal()" data-i18n="back_to_login">← Back to Login</button>
         <h2 data-i18n="create_zone_title">Create Destination Zone</h2>
         <p class="form-subtitle" data-i18n="create_zone_desc">Set up a customized command center, helpline phone, and safety grid.</p>
@@ -533,12 +499,11 @@
             <label for="newZonePasscode" data-i18n="admin_passcode_label">Admin Master Passcode</label>
             <input type="password" id="newZonePasscode" required placeholder="Set secure passcode" data-i18n-placeholder="ph_passcode">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px; background: #22c55e; color: #022c0e; font-weight: 700;" data-i18n="create_command_btn">Create Command Center</button>
+          <button type="submit" class="solid-btn btn-success full-width" style="margin-top: 15px;" data-i18n="create_command_btn">Create Command Center</button>
         </form>
       </section>
 
-      <!-- 5. USER SIGN IN -->
-      <section id="userSignInModal" class="glass-modal auth-modal" style="display: none;">
+      <section id="userSignInModal" class="solid-modal auth-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 data-i18n="signin_phone">Sign In to Safety Grid</h2>
         <p class="form-subtitle" data-i18n="signin_desc">Enter your registered phone number to restore your Digital ID.</p>
@@ -547,38 +512,36 @@
             <label for="signInPhoneInput" data-i18n="phone_label">Registered Phone Number</label>
             <input type="tel" id="signInPhoneInput" required placeholder="+91 9876543210" data-i18n-placeholder="ph_phone">
           </div>
-          <button type="submit" class="submit-btn" style="margin-top: 15px;" data-i18n="restore_session_btn">Restore Session</button>
+          <button type="submit" class="solid-btn btn-primary full-width" style="margin-top: 15px;" data-i18n="restore_session_btn">Restore Session</button>
         </form>
       </section>
 
-      <!-- 6. USER REGISTRATION WITH DEDICATED SELFIE CAMERA -->
-      <section id="registrationPage" class="glass-modal" style="display: none;">
+      <section id="registrationPage" class="solid-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()" data-i18n="close_btn">✕ Close</button>
         <h2 id="registrationTitle" data-i18n="register_tourist">Registration</h2>
         <p class="form-subtitle" data-i18n="register_tourist_desc">Sync your details and take a live selfie for your Digital Safety ID.</p>
 
         <form id="registrationForm">
           
-          <!-- LIVE SELFIE CAMERA & HARDWARE CAPTURE BOX -->
           <div class="form-group full-width camera-section">
-            <label style="font-weight: 700; color: #38bdf8; font-size: 13px;" data-i18n="selfie_req_title">📸 Required: Live Selfie Verification</label>
+            <label class="section-label" data-i18n="selfie_req_title">📸 Required: Live Selfie Verification</label>
             
             <div class="camera-viewport-box">
               <video id="selfieVideo" autoplay playsinline class="camera-stream" style="display: none;"></video>
               <canvas id="selfieCanvas" style="display: none;"></canvas>
               <img id="selfiePreview" class="camera-preview-img" style="display: none;" alt="Captured Selfie">
-              <div id="cameraPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 12px;">
-                <span style="font-size: 38px; margin-bottom: 4px;">🤳</span>
+              <div id="cameraPlaceholder" class="camera-placeholder">
+                <span style="font-size: 32px; margin-bottom: 4px;">🤳</span>
                 <span data-i18n="selfie_placeholder">Selfie Not Taken Yet</span>
               </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
-              <button type="button" id="startCameraBtn" class="camera-action-btn" onclick="startLiveCamera('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'captureBtn', 'retakeBtn')" data-i18n="open_live_cam">📷 Open Live Camera</button>
-              <button type="button" id="captureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('selfieVideo', 'selfieCanvas', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')" data-i18n="take_snapshot">⚡ Take Snapshot</button>
-              <button type="button" id="retakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')" data-i18n="retake_btn">🔄 Retake</button>
+            <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
+              <button type="button" id="startCameraBtn" class="solid-btn btn-secondary" onclick="startLiveCamera('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'captureBtn', 'retakeBtn')" data-i18n="open_live_cam">📷 Open Live Camera</button>
+              <button type="button" id="captureBtn" class="solid-btn btn-success" style="display: none;" onclick="captureLiveSelfie('selfieVideo', 'selfieCanvas', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')" data-i18n="take_snapshot">⚡ Take Snapshot</button>
+              <button type="button" id="retakeBtn" class="solid-btn btn-warning" style="display: none;" onclick="retakeLiveSelfie('selfieVideo', 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'captureBtn', 'retakeBtn')" data-i18n="retake_btn">🔄 Retake</button>
 
-              <label class="camera-action-btn" style="background: #38bdf8; color: #022c0e; cursor: pointer; display: inline-flex; align-items: center;">
+              <label class="solid-btn btn-primary" style="cursor: pointer; display: inline-flex; align-items: center;">
                 <span data-i18n="tap_open_cam">📱 Tap to Open Camera</span>
                 <input type="file" id="nativeSelfieInput" accept="image/*" capture="user" style="display: none;" onchange="handleNativeSelfieCapture(event, 'selfiePreview', 'cameraPlaceholder', 'capturedSelfieData', 'selfieVideo', 'captureBtn', 'retakeBtn')">
               </label>
@@ -588,9 +551,9 @@
           </div>
 
           <div class="form-grid" style="margin-top: 14px;">
-            <div class="form-group full-width" style="background: rgba(255, 208, 0, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 208, 0, 0.4);">
-              <label for="regZoneCode" style="color: #ffd000; font-weight: 700;" data-i18n="zone_code_label">Destination / Zone Code</label>
-              <input type="text" id="regZoneCode" required placeholder="Enter destination zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
+            <div class="form-group full-width highlight-group">
+              <label for="regZoneCode" data-i18n="zone_code_label">Destination / Zone Code</label>
+              <input type="text" id="regZoneCode" required placeholder="Enter destination zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase;">
             </div>
 
             <div class="form-group full-width">
@@ -664,12 +627,11 @@
             </div>
           </div>
 
-          <button type="submit" class="submit-btn" id="regSubmitBtn" data-i18n="complete_reg_btn">Complete Registration & Mine to Blockchain</button>
+          <button type="submit" class="solid-btn btn-primary full-width" id="regSubmitBtn" data-i18n="complete_reg_btn">Complete Registration & Mine to Blockchain</button>
         </form>
       </section>
 
-      <!-- 7. EDIT PROFILE MODAL WITH SELFIE UPDATER -->
-      <section id="editProfileModal" class="glass-modal" style="display: none;">
+      <section id="editProfileModal" class="solid-modal" style="display: none;">
         <button class="back-btn" onclick="closeModal()" data-i18n="cancel_btn">✕ Cancel</button>
         <h2 data-i18n="edit_profile">Edit My Safety Profile</h2>
         <p class="form-subtitle" data-i18n="dashboard_desc">Update your personal details, preferred language, or refresh your live selfie.</p>
@@ -679,24 +641,24 @@
           <input type="hidden" id="editCapturedSelfieData">
           
           <div class="form-group full-width camera-section">
-            <label style="font-weight: 700; color: #38bdf8;" data-i18n="selfie_req_title">📸 Update Profile Selfie</label>
+            <label class="section-label" data-i18n="selfie_req_title">📸 Update Profile Selfie</label>
             
             <div class="camera-viewport-box">
               <video id="editSelfieVideo" autoplay playsinline class="camera-stream" style="display: none;"></video>
               <canvas id="editSelfieCanvas" style="display: none;"></canvas>
               <img id="editSelfiePreview" class="camera-preview-img" style="display: none;" alt="Current Selfie">
-              <div id="editCameraPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 12px;">
-                <span style="font-size: 38px; margin-bottom: 4px;">🤳</span>
+              <div id="editCameraPlaceholder" class="camera-placeholder">
+                <span style="font-size: 32px; margin-bottom: 4px;">🤳</span>
                 <span data-i18n="selfie_placeholder">Current Selfie Preview</span>
               </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
-              <button type="button" id="editStartCameraBtn" class="camera-action-btn" onclick="startLiveCamera('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="open_live_cam">📷 Open Live Camera</button>
-              <button type="button" id="editCaptureBtn" class="camera-action-btn" style="display: none; background: #22c55e; color: #000;" onclick="captureLiveSelfie('editSelfieVideo', 'editSelfieCanvas', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="take_snapshot">⚡ Take Snapshot</button>
-              <button type="button" id="editRetakeBtn" class="camera-action-btn" style="display: none; background: #f59e0b; color: #000;" onclick="retakeLiveSelfie('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="retake_btn">🔄 Retake</button>
+            <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: center; flex-wrap: wrap;">
+              <button type="button" id="editStartCameraBtn" class="solid-btn btn-secondary" onclick="startLiveCamera('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="open_live_cam">📷 Open Live Camera</button>
+              <button type="button" id="editCaptureBtn" class="solid-btn btn-success" style="display: none;" onclick="captureLiveSelfie('editSelfieVideo', 'editSelfieCanvas', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="take_snapshot">⚡ Take Snapshot</button>
+              <button type="button" id="editRetakeBtn" class="solid-btn btn-warning" style="display: none;" onclick="retakeLiveSelfie('editSelfieVideo', 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editCaptureBtn', 'editRetakeBtn')" data-i18n="retake_btn">🔄 Retake</button>
               
-              <label class="camera-action-btn" style="background: #38bdf8; color: #022c0e; cursor: pointer; display: inline-flex; align-items: center;">
+              <label class="solid-btn btn-primary" style="cursor: pointer; display: inline-flex; align-items: center;">
                 <span data-i18n="tap_open_cam">📱 Tap to Open Camera</span>
                 <input type="file" id="editNativeSelfieInput" accept="image/*" capture="user" style="display: none;" onchange="handleNativeSelfieCapture(event, 'editSelfiePreview', 'editCameraPlaceholder', 'editCapturedSelfieData', 'editSelfieVideo', 'editCaptureBtn', 'editRetakeBtn')">
               </label>
@@ -705,8 +667,8 @@
 
           <div class="form-grid" style="margin-top: 14px;">
             <div class="form-group full-width">
-              <label for="editPreferredLanguage" style="color: #38bdf8; font-weight: 700;" data-i18n="lang_select_label">🌐 Choose Language (All 22 Official Indian Languages)</label>
-              <select id="editPreferredLanguage" required style="border-color: #38bdf8;">
+              <label for="editPreferredLanguage" data-i18n="lang_select_label">🌐 Choose Language (All 22 Official Indian Languages)</label>
+              <select id="editPreferredLanguage" required>
                 <option value="en">English</option>
                 <option value="hi">हिन्दी (Hindi)</option>
                 <option value="mr">मराठी (Marathi)</option>
@@ -733,9 +695,9 @@
               </select>
             </div>
 
-            <div class="form-group full-width" style="background: rgba(56, 189, 248, 0.12); padding: 12px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.4);">
-              <label for="editZoneCode" style="color: #38bdf8; font-weight: 700;" data-i18n="zone_code_label">Destination / Zone Code</label>
-              <input type="text" id="editZoneCode" required placeholder="Enter new zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase; font-weight: 700; color: #fff;">
+            <div class="form-group full-width highlight-group">
+              <label for="editZoneCode" data-i18n="zone_code_label">Destination / Zone Code</label>
+              <input type="text" id="editZoneCode" required placeholder="Enter new zone code" data-i18n-placeholder="ph_zone_code" style="text-transform: uppercase;">
             </div>
 
             <div class="form-group full-width">
@@ -801,22 +763,21 @@
               <textarea id="editHomeAddress" rows="2" required placeholder="Hotel or stay details" data-i18n-placeholder="ph_address"></textarea>
             </div>
 
-            <div class="form-group full-width checkbox-group" style="display: flex; gap: 20px;">
+            <div class="form-group full-width checkbox-group">
               <label><input type="checkbox" id="editIsTourist"> <span data-i18n="register_tourist">Registered as Tourist</span></label>
               <label><input type="checkbox" id="editIsVolunteer"> <span data-i18n="register_volunteer">Registered as Volunteer</span></label>
             </div>
           </div>
 
-          <button type="submit" class="submit-btn" id="editSubmitBtn" style="background: #38bdf8; color: #022c0e; font-weight: 700;" data-i18n="update_save_btn">💾 Update Profile & Append Blockchain Block</button>
+          <button type="submit" class="solid-btn btn-primary full-width" id="editSubmitBtn" data-i18n="update_save_btn">💾 Update Profile & Append Blockchain Block</button>
         </form>
       </section>
 
-      <!-- 8. SUCCESS MESSAGE -->
-      <section id="successPage" class="glass-modal status-card" style="display: none;">
+      <section id="successPage" class="solid-modal status-card" style="display: none;">
         <div class="success-icon">✓</div>
         <h2 data-i18n="op_complete">Operation Complete</h2>
         <p id="successMessage" data-i18n="passport_ready_msg">Your Digital Safety ID is active and cryptographically signed.</p>
-        <button class="submit-btn" onclick="closeModal()" data-i18n="return_dashboard">Return to Dashboard</button>
+        <button class="solid-btn btn-primary full-width" onclick="closeModal()" data-i18n="return_dashboard">Return to Dashboard</button>
       </section>
 
     </div>
