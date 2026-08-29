@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Gurmukhi:wght@400;600;700&family=Noto+Sans+Gujarati:wght@400;600;700&family=Noto+Sans+Bengali:wght@400;600;700&family=Noto+Sans+Oriya:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Noto+Sans+Malayalam:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 * {
   box-sizing: border-box;
@@ -14,7 +14,7 @@
 }
 
 body {
-  font-family: "Inter", "Noto Sans Devanagari", "Noto Sans Gurmukhi", "Noto Sans Gujarati", "Noto Sans Bengali", "Noto Sans Oriya", "Noto Sans Tamil", "Noto Sans Telugu", "Noto Sans Malayalam", "Noto Nastaliq Urdu", sans-serif;
+  font-family: "Inter", sans-serif;
   margin: 0;
   padding: 0;
   min-height: 100vh;
@@ -23,23 +23,33 @@ body {
   overflow-x: hidden;
 }
 
-body[dir="rtl"] {
-  direction: rtl;
-  text-align: right;
-}
-
-.bg-plane {
+/* Dynamic Interactive Cursor Wallpaper */
+.wallpaper-ambient {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(circle 650px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16, 185, 129, 0.08), transparent 80%);
+  transition: opacity 0.4s ease;
+}
+
+.bg-plane {
+  position: fixed;
+  top: -5%;
+  left: -5%;
+  width: 110vw;
+  height: 110vh;
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
   opacity: 0;
-  transition: opacity 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 2s ease, transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   z-index: 0;
   pointer-events: none;
+  background-image: radial-gradient(circle at 50% 50%, rgba(13, 31, 22, 0.6) 0%, #030a05 100%), 
+                    url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2000&q=80');
 }
 
 .bg-plane.active { opacity: 1; }
@@ -48,9 +58,9 @@ body[dir="rtl"] {
   min-height: 100vh;
   width: 100%;
   position: relative;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.38) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.48) 100%);
   z-index: 2;
-  transition: background 2s ease;
+  transition: background 1.5s ease;
 }
 
 .navbar {
@@ -81,39 +91,26 @@ body[dir="rtl"] {
   backdrop-filter: blur(12px);
   color: #ffffff;
   font-weight: 700;
-  transition: border-color 2s ease;
 }
 
 .brand strong { display: block; font-size: 20px; }
 .brand span { display: block; font-size: 11px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.85); }
 
-.lang-selector-wrapper {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 4px 10px;
+.nav-links a {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 14px;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 6px 14px;
   border-radius: 20px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: background 0.2s ease;
 }
 
-.lang-dropdown {
-  background: transparent;
-  border: none;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  outline: none;
-  cursor: pointer;
+.nav-links a:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
-
-.lang-dropdown option {
-  background: #0c1a14;
-  color: #ffffff;
-}
-
-.nav-links a { color: #ffffff; text-decoration: none; font-size: 14px; opacity: 0.9; }
 
 .hero {
   min-height: calc(100vh - 84px);
@@ -175,7 +172,7 @@ body[dir="rtl"] {
   color: #ffffff;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.3s ease, background 0.3s ease, border-color 2s ease;
+  transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
@@ -228,7 +225,6 @@ body[dir="rtl"] {
   justify-content: space-between;
   backdrop-filter: blur(20px);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-  transition: all 2s ease;
   flex-wrap: wrap;
   gap: 10px;
 }
@@ -252,17 +248,6 @@ body[dir="rtl"] {
   background: rgba(239, 68, 68, 0.4);
   border-color: rgba(239, 68, 68, 0.7);
   color: #ffffff;
-}
-
-/* Blockchain Block Ledger Widget */
-.blockchain-block-card {
-  min-width: 220px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid #38bdf8;
-  border-radius: 12px;
-  padding: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-  flex-shrink: 0;
 }
 
 /* Digital Safety ID Passport */
@@ -335,9 +320,7 @@ body[dir="rtl"] {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
-.qr-code-box img {
-  display: block;
-}
+.qr-code-box img { display: block; }
 
 .digital-id-details {
   flex: 1;
@@ -346,9 +329,7 @@ body[dir="rtl"] {
   line-height: 1.5;
 }
 
-.digital-id-details strong {
-  color: #ffd000;
-}
+.digital-id-details strong { color: #ffd000; }
 
 /* Camera Viewport */
 .camera-section {
@@ -454,24 +435,6 @@ body[dir="rtl"] {
   color: #fca5a5 !important;
 }
 
-.victim-aid-status-box {
-  width: 100%;
-  background: rgba(14, 165, 233, 0.25);
-  border: 1px solid #38bdf8;
-  border-radius: 16px;
-  padding: 18px 20px;
-  margin-bottom: 15px;
-  backdrop-filter: blur(20px);
-}
-
-.aid-pulse-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #38bdf8;
-  box-shadow: 0 0 10px #38bdf8;
-}
-
 .whatsapp-live-map-window {
   width: 100%;
   height: 240px;
@@ -481,14 +444,6 @@ body[dir="rtl"] {
   overflow: hidden;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
   z-index: 10;
-}
-
-.victim-contacts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-  width: 100%;
 }
 
 .sos-wrapper { width: 100%; margin-top: 5px; }
