@@ -1,6 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-// Global Fallback Avatar (SVG Base64)
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 // ==========================================
@@ -14,11 +13,7 @@ const SUPERADMIN_PASSCODE = "SUPERADMIN2026";
 
 class LocalDatabaseEngine {
   constructor() {
-    this.profilesKey = "local_db_profiles";
     this.zonesKey = "local_db_zones";
-    this.sosKey = "local_db_sos_events";
-    this.missionsKey = "local_db_missions";
-    this.locationsKey = "local_db_locations";
     this.initDefaults();
   }
 
@@ -68,224 +63,44 @@ class LocalDatabaseEngine {
 const localDB = new LocalDatabaseEngine();
 
 // ==========================================
-// 2. CRYPTOGRAPHIC SHA-256 SIMULATED LEDGER
+// 2. SUBTLE CURSOR-RESPONSIVE WALLPAPER
 // ==========================================
-class CryptoBlockchain {
-  constructor() {
-    this.chainKey = "tourist_safety_blockchain_ledger";
-    this.chain = this.loadChain();
-  }
+function initCursorWallpaper() {
+  const plane = document.getElementById("bgPlaneA");
+  const ambient = document.getElementById("cursorAmbient");
+  if (!plane) return;
 
-  async sha256(str) {
-    const buffer = new TextEncoder().encode(str);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
-  }
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let currentX = 0;
+  let currentY = 0;
 
-  loadChain() {
-    try {
-      const stored = localStorage.getItem(this.chainKey);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {}
-    
-    const genesis = [{
-      index: 0,
-      timestamp: "2026-01-01T00:00:00.000Z",
-      action: "GENESIS_BLOCK",
-      data: { message: "Tourist Safety Cryptographic Ledger Initialized" },
-      previous_hash: "0000000000000000000000000000000000000000000000000000000000000000",
-      nonce: 1042,
-      hash: "0000a4b71c2f9e4e6d3a82f6e91c781d45f9a21b3c4d5e6f7a8b9c0d1e2f3a4b"
-    }];
-    localStorage.setItem(this.chainKey, JSON.stringify(genesis));
-    return genesis;
-  }
-
-  async addBlock(actionType, payload) {
-    const prevBlock = this.chain[this.chain.length - 1];
-    const newIndex = this.chain.length;
-    const timestamp = new Date().toISOString();
-    let nonce = 0;
-    let hash = "";
-
-    while (true) {
-      const raw = `${newIndex}${timestamp}${actionType}${JSON.stringify(payload)}${prevBlock.hash}${nonce}`;
-      hash = await this.sha256(raw);
-      if (hash.startsWith("00") || nonce > 500) break;
-      nonce++;
+  window.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    if (ambient) {
+      ambient.style.setProperty("--mouse-x", `${mouseX}px`);
+      ambient.style.setProperty("--mouse-y", `${mouseY}px`);
     }
-
-    const newBlock = {
-      index: newIndex,
-      timestamp: timestamp,
-      action: actionType,
-      data: payload,
-      previous_hash: prevBlock.hash,
-      nonce: nonce,
-      hash: hash
-    };
-
-    this.chain.push(newBlock);
-    localStorage.setItem(this.chainKey, JSON.stringify(this.chain));
-    return newBlock;
-  }
-
-  isValid() {
-    for (let i = 1; i < this.chain.length; i++) {
-      const cur = this.chain[i];
-      const prev = this.chain[i - 1];
-      if (cur.previous_hash !== prev.hash) return false;
-    }
-    return true;
-  }
-}
-
-const blockchain = new CryptoBlockchain();
-
-// ==========================================
-// 3. ALL 22 INDIAN LANGUAGES DICTIONARY
-// ==========================================
-const TRANSLATIONS = {
-  en: {
-    brand_title: "Tourist Safety", dynamic_grid: "DYNAMIC GRID", switch_portal: "Switch Portal",
-    hero_heritage: "MULTI-DESTINATION GEOFENCE & RESCUE GRID", access_control: "Access Control",
-    system: "System", select_auth: "Select your access authorization level to enter the safety grid.",
-    public_entry: "PUBLIC ENTRY", user_portal: "User Portal",
-    user_portal_desc: "Register with a live selfie verification and generate your Digital Safety Passport.",
-    zone_authority: "ZONE AUTHORITY", staff_command: "Staff Command",
-    staff_command_desc: "Scan visitor Digital IDs, configure safe zones, and dispatch emergency teams.",
-    head_of_platform: "HEAD OF PLATFORM", master_control: "Master Control",
-    master_control_desc: "Global oversight across all active destination zones, Digital IDs, and blockchain ledger.",
-    tourist_dashboard: "Tourist Safety", dashboard_subtitle: "Dashboard",
-    dashboard_desc: "Explore safely within certified destination boundaries with your verified Digital Safety ID.",
-    register_tourist: "Register as Tourist", register_tourist_desc: "Create your safety profile with a quick live selfie verification.",
-    register_volunteer: "Register as Volunteer", register_volunteer_desc: "Join the regional response network to protect and aid nearby tourists.",
-    signin_phone: "Sign In with Phone", signin_desc: "Restore your active session, Digital ID QR, and safety boundary.",
-    official_passport: "OFFICIAL DIGITAL SAFETY PASSPORT", verified: "VERIFIED",
-    phone_label: "Phone:", blood_group_label: "Blood Group:", emergency_contact_label: "Emergency Contact:",
-    stay_address_label: "Stay / Address:", qr_hint: "💡 Real scannable data for emergency and offline ID verification.",
-    inside_safe_zone: "Inside Safe Zone", safe_perimeter_desc: "Certified tourist perimeter monitored by local command center.",
-    outside_safe_zone: "⚠️ Outside Certified Safe Zone", send_sos: "SEND LIVE SOS", cancel_sos: "CANCEL SOS (ACTIVE)",
-    emergency_assistance: "EMERGENCY ASSISTANCE", leave_zone: "✕ Leave Event Zone & Purge My Telemetry",
-    leave_zone_desc: "Permanently deletes your profile, selfie, and real-time location telemetry.",
-    edit_profile: "✏️ Edit Profile", log_out: "Log Out", refresh: "↻ Refresh",
-    zone_command: "Zone Command:", total_in_zone: "Total In Zone", active_tourists: "Active Tourists",
-    volunteers_ready: "Volunteers Ready", active_zone_alerts: "Active Zone Alerts",
-    safe_zone_editor: "🗺️ Safe Zone Geofence Editor (Shaded Green Region)", save_geofence: "💾 Save Geofence Boundary",
-    field_deployment: "⚡ Field Deployment & Live Location Tracker", status_normal: "Normal", status_sos: "🚨 SOS ACTIVE",
-    status_responder: "⚡ RESPONDER IN RANGE", view_qr: "🔍 View QR", view_id: "🔍 View ID",
-    call_victim: "📞 Call Victim", command_route: "🗺️ Command Route", volunteer_route: "🗺️ Volunteer Route",
-    deploy_hq: "✓ DEPLOY HQ UNIT", stand_by: "✕ STAND BY", yes_assist: "✓ YES, ASSIST", no_decline: "✕ NO",
-    safe_chilling: "✓ I'm Safe / Chilling", need_help: "🚨 I Need Help"
-  },
-  hi: {
-    brand_title: "पर्यटक सुरक्षा", dynamic_grid: "डायनामिक ग्रिड", switch_portal: "पोर्टल बदलें",
-    hero_heritage: "मल्टी-डेस्टिनेशन जियोफेंस और बचाव ग्रिड", access_control: "एक्सेस कंट्रोल",
-    system: "प्रणाली", select_auth: "सुरक्षा ग्रिड में प्रवेश करने के लिए अपना प्राधिकरण स्तर चुनें।",
-    public_entry: "सार्वजनिक प्रवेश", user_portal: "उपयोगकर्ता पोर्टल",
-    user_portal_desc: "लाइव सेल्फी सत्यापन के साथ पंजीकरण करें और अपना डिजिटल सेफ्टी पासपोर्ट प्राप्त करें।",
-    zone_authority: "जोन प्राधिकरण", staff_command: "स्टाफ कमांड",
-    staff_command_desc: "डिजिटल आईडी स्कैन करें, सुरक्षित क्षेत्र सेट करें और आपातकालीन दल भेजें।",
-    head_of_platform: "प्लेटफ़ॉर्म प्रमुख", master_control: "मास्टर कंट्रोल",
-    master_control_desc: "सभी सक्रिय गंतव्य क्षेत्रों, डिजिटल आईडी और लाइव टेलीमेट्री की वैश्विक निगरानी।",
-    tourist_dashboard: "पर्यटक सुरक्षा", dashboard_subtitle: "डैशबोर्ड",
-    dashboard_desc: "सत्यापित डिजिटल सुरक्षा आईडी के साथ प्रमाणित गंतव्य सीमाओं में सुरक्षित रहें।",
-    register_tourist: "पर्यटक पंजीकरण", register_tourist_desc: "त्वरित लाइव सेल्फी सत्यापन के साथ अपनी सुरक्षा प्रोफ़ाइल बनाएं।",
-    register_volunteer: "स्वयंसेवक पंजीकरण", register_volunteer_desc: "आस-पास के पर्यटकों की सुरक्षा और सहायता के लिए क्षेत्रीय नेटवर्क से जुड़ें।",
-    signin_phone: "फोन से साइन इन करें", signin_desc: "अपना सक्रिय सत्र, डिजिटल आईडी क्यूआर और सुरक्षा सीमा पुनः प्राप्त करें।",
-    official_passport: "आधिकारिक डिजिटल सुरक्षा पासपोर्ट", verified: "सत्यापित",
-    phone_label: "फ़ोन:", blood_group_label: "रक्त समूह:", emergency_contact_label: "आपातकालीन संपर्क:",
-    stay_address_label: "ठहरने का पता:", qr_hint: "💡 इस क्यूआर कोड में आपातकालीन सत्यापन के लिए वास्तविक डेटा है।",
-    inside_safe_zone: "सुरक्षित क्षेत्र के अंदर", safe_perimeter_desc: "स्थानीय कमांड सेंटर द्वारा निगरानी की जाने वाली प्रमाणित पर्यटक परिधि।",
-    outside_safe_zone: "⚠️ प्रमाणित सुरक्षित क्षेत्र से बाहर", send_sos: "लाइव संकट संकेत भेजें (SOS)", cancel_sos: "संकट संकेत रद्द करें",
-    emergency_assistance: "आपातकालीन सहायता", leave_zone: "✕ इवेंट जोन छोड़ें और डेटा हटाएं",
-    leave_zone_desc: "आपकी प्रोफ़ाइल, सेल्फी और रीयल-टाइम स्थान डेटा को स्थायी रूप से हटा देता है।",
-    edit_profile: "✏️ प्रोफ़ाइल संपादित करें", log_out: "लॉग आउट", refresh: "↻ रीफ़्रेश",
-    zone_command: "जोन कमांड:", total_in_zone: "जोन में कुल", active_tourists: "सक्रिय पर्यटक",
-    volunteers_ready: "तैयार स्वयंसेवक", active_zone_alerts: "सक्रिय अलर्ट",
-    safe_zone_editor: "🗺️ सुरक्षित क्षेत्र जियोफेंस संपादक", save_geofence: "💾 जियोफेंस सीमा सहेजें",
-    field_deployment: "⚡ फील्ड तैनाती और लाइव लोकेशन ट्रैकर", status_normal: "सामान्य", status_sos: "🚨 संकट सक्रिय",
-    status_responder: "⚡ मददगार पास में है", view_qr: "🔍 क्यूआर देखें", view_id: "🔍 आईडी देखें",
-    call_victim: "📞 पीड़ित को कॉल करें", command_route: "🗺️ कमांड मार्ग", volunteer_route: "🗺️ स्वयंसेवक मार्ग",
-    deploy_hq: "✓ कमांड यूनिट भेजें", stand_by: "✕ प्रतीक्षा करें", yes_assist: "✓ हाँ, सहायता करें", no_decline: "✕ नहीं",
-    safe_chilling: "✓ मैं सुरक्षित हूँ", need_help: "🚨 मुझे मदद चाहिए"
-  },
-  mr: {
-    brand_title: "पर्यटक सुरक्षा", dynamic_grid: "डायनॅमिक ग्रिड", switch_portal: "पोर्टल बदला",
-    hero_heritage: "मल्टी-डेस्टिनेशन जिओफेन्स आणि बचाव यंत्रणा", access_control: "प्रवेश नियंत्रण",
-    system: "प्रणाली", select_auth: "सुरक्षा ग्रिडमध्ये प्रवेश करण्यासाठी आपला स्तर निवडा.",
-    public_entry: "सार्वजनिक प्रवेश", user_portal: "वापरकर्ता पोर्टल",
-    user_portal_desc: "थेट सेल्फी पडताळणीसह नोंदणी करा आणि डिजिटल सेफ्टी पासपोर्ट मिळवा.",
-    zone_authority: "झोन प्राधिकरण", staff_command: "स्टाफ कमांड",
-    staff_command_desc: "डिजिटल आयडी स्कॅन करा, सुरक्षित सीमा ठरवा आणि बचाव पथके पाठवा.",
-    head_of_platform: "प्लॅटफॉर्म प्रमुख", master_control: "मास्टर कंट्रोल",
-    master_control_desc: "सर्व पर्यटन क्षेत्रे, डिजिटल आयडी आणि ब्लॉकचेन लेजरचे थेट निरीक्षण.",
-    tourist_dashboard: "पर्यटक सुरक्षा", dashboard_subtitle: "डॅशबोर्ड",
-    dashboard_desc: "डिजिटल सुरक्षा आयडीसह प्रमाणित क्षेत्रात सुरक्षित प्रवास करा.",
-    register_tourist: "पर्यटक म्हणून नोंदणी", register_tourist_desc: "थेट सेल्फी पडताळणीसह आपले सुरक्षा प्रोफाइल तयार करा.",
-    register_volunteer: "स्वयंसेवक म्हणून नोंदणी", register_volunteer_desc: "पर्यटकांच्या मदतीसाठी सुरक्षा नेटवर्कमध्ये सामील व्हा.",
-    signin_phone: "फोनने साइन इन करा", signin_desc: "आपले सक्रिय सत्र आणि डिजिटल आयडी क्यूआर पुन्हा मिळवा.",
-    official_passport: "अधिकृत डिजिटल सुरक्षा पासपोर्ट", verified: "प्रमाणित",
-    phone_label: "फोन:", blood_group_label: "रक्तगट:", emergency_contact_label: "आपत्कालीन संपर्क:",
-    stay_address_label: "मुक्कामाचा पत्ता:", qr_hint: "💡 या क्यूआर कोडमध्ये खरी आपत्कालीन माहिती आहे.",
-    inside_safe_zone: "सुरक्षित क्षेत्रात आहात", safe_perimeter_desc: "स्थानिक कमांड सेंटरद्वारे नियंत्रित सुरक्षित पर्यटक क्षेत्र.",
-    outside_safe_zone: "⚠️ सुरक्षित क्षेत्राबाहेर आहात", send_sos: "तातडीची मदत मागा (SOS)", cancel_sos: "मदत मागणी रद्द करा",
-    emergency_assistance: "आपत्कालीन साहाय्य", leave_zone: "✕ झोन सोडा आणि डेटा नष्ट करा",
-    leave_zone_desc: "आपले प्रोफाइल, सेल्फी आणि थेट स्थान माहिती कायमची नष्ट होईल.",
-    edit_profile: "✏️ प्रोफाइल बदला", log_out: "लॉग आउट", refresh: "↻ रिफ्रेश",
-    zone_command: "झोन कमांड:", total_in_zone: "झोनमधील एकूण", active_tourists: "सक्रिय पर्यटक",
-    volunteers_ready: "उपलब्ध स्वयंसेवक", active_zone_alerts: "सक्रिय धोके",
-    safe_zone_editor: "🗺️ सुरक्षित क्षेत्र संपादक", save_geofence: "💾 सीमा सेव्ह करा",
-    field_deployment: "⚡ फील्ड तैनाती आणि थेट ट्रॅकर", status_normal: "सामान्य", status_sos: "🚨 आणीबाणी सक्रिय",
-    status_responder: "⚡ मदतनीस जवळ आहे", view_qr: "🔍 क्यूआर पाहा", view_id: "🔍 आयडी पाहा",
-    call_victim: "📞 कॉल करा", command_route: "🗺️ कमांड मार्ग", volunteer_route: "🗺️ स्वयंसेवक मार्ग",
-    deploy_hq: "✓ पथक पाठवा", stand_by: "✕ थांबा", yes_assist: "✓ होय, मदत करतो", no_decline: "✕ नाही",
-    safe_chilling: "✓ मी सुरक्षित आहे", need_help: "🚨 मला मदत हवी आहे"
-  }
-};
-
-let currentLanguage = localStorage.getItem("preferredLanguage") || "en";
-
-// ==========================================
-// 4. LANGUAGE ENGINE & DOM BINDING
-// ==========================================
-window.changeAppLanguage = function(lang) {
-  if (!TRANSLATIONS[lang]) lang = "en";
-  currentLanguage = lang;
-  localStorage.setItem("preferredLanguage", lang);
-
-  const globalPicker = document.getElementById("globalLanguagePicker");
-  if (globalPicker) globalPicker.value = lang;
-
-  if (lang === "ur" || lang === "sd" || lang === "ks") {
-    document.body.setAttribute("dir", "rtl");
-  } else {
-    document.body.removeAttribute("dir");
-  }
-
-  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-
-  document.querySelectorAll("[data-i18n]").forEach(el => {
-    const key = el.getAttribute("data-i18n");
-    if (t[key]) el.innerText = t[key];
   });
 
-  const titleEl = document.getElementById("geofenceStatusTitle");
-  if (titleEl) titleEl.innerText = isEmergencyActive ? t.outside_safe_zone : t.inside_safe_zone;
+  function renderWallpaper() {
+    // Very subtle parallax displacement: max ~12px shift
+    const targetX = (mouseX / window.innerWidth - 0.5) * -18;
+    const targetY = (mouseY / window.innerHeight - 0.5) * -18;
 
-  const descEl = document.getElementById("geofenceStatusDesc");
-  if (descEl) descEl.innerText = t.safe_perimeter_desc;
+    // Linear interpolation for smooth glide
+    currentX += (targetX - currentX) * 0.05;
+    currentY += (targetY - currentY) * 0.05;
 
-  const sosLabelEl = document.getElementById("sosLabel");
-  if (sosLabelEl) sosLabelEl.innerText = isEmergencyActive ? t.cancel_sos : t.send_sos;
-
-  updateUserStateView();
-  if (sessionStorage.getItem("staffAuthenticated") === "true") window.loadStaffMonitoringData();
-  if (sessionStorage.getItem("superAdminAuthenticated") === "true") window.loadSuperAdminMatrix();
-};
+    plane.style.transform = `translate3d(${currentX}px, ${currentY}px, 0) scale(1.03)`;
+    requestAnimationFrame(renderWallpaper);
+  }
+  requestAnimationFrame(renderWallpaper);
+}
 
 // ==========================================
-// 5. CAMERA & SELFIE HANDLING
+// 3. HARDWARE CAMERA & LIVE SELFIE ENGINE
 // ==========================================
 let activeCameraMediaStream = null;
 
@@ -389,25 +204,23 @@ window.retakeLiveSelfie = function(videoId, previewId, placeholderId, hiddenInpu
 };
 
 // ==========================================
-// 6. QR CODE ENGINE
+// 4. QR CODE & VERIFICATION
 // ==========================================
 function formatProfileDataForQR(profile) {
   const roles = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ") || "User";
   const em1 = profile.emergency_contact_1 ? `${profile.emergency_contact_1} (${profile.emergency_phone_1 || 'N/A'})` : "None";
   const em2 = profile.emergency_contact_2 ? `${profile.emergency_contact_2} (${profile.emergency_phone_2 || 'N/A'})` : "None";
 
-  return `TOURIST SAFETY BLOCKCHAIN PASSPORT
+  return `TOURIST SAFETY PASSPORT
 Name: ${profile.name || 'N/A'}
 Role: ${roles}
 Zone: ${profile.zone_code || 'UNASSIGNED'}
-Lang: ${(profile.preferred_language || currentLanguage).toUpperCase()}
 Phone: ${profile.phone || 'N/A'}
 Blood: ${profile.blood_group || 'N/A'}
 Age/Gender: ${profile.age || 'N/A'}/${profile.gender || 'N/A'}
 ICE 1: ${em1}
 ICE 2: ${em2}
-Stay: ${profile.home_address || 'N/A'}
-Block Index: ${profile.blockchain_block_index || 'Local Mined'}`;
+Stay: ${profile.home_address || 'N/A'}`;
 }
 
 function renderQRCodeInElement(elementId, text, size = 180) {
@@ -435,7 +248,6 @@ window.inspectUserProfileQR = function(encodedProfileJson) {
     if (detailsEl) {
       detailsEl.innerHTML = `
         <div><strong>Zone:</strong> <span style="color:#ffd000;">${profile.zone_code || 'UNASSIGNED'}</span></div>
-        <div><strong>Language:</strong> <span style="color:#38bdf8;">${(profile.preferred_language || 'en').toUpperCase()}</span></div>
         <div><strong>Role:</strong> ${[profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ")}</div>
         <div><strong>Phone:</strong> <a href="tel:${profile.phone}" style="color:#38bdf8;">${profile.phone || 'N/A'}</a></div>
         <div><strong>Blood Group:</strong> <span style="color:#ef4444; font-weight:700;">${profile.blood_group || 'N/A'}</span></div>
@@ -452,7 +264,7 @@ window.inspectUserProfileQR = function(encodedProfileJson) {
 };
 
 // ==========================================
-// 7. TELEMETRY, GPS & LEAFLET MAP ENGINE
+// 5. GPS & LEAFLET ENGINE
 // ==========================================
 let verifiedGpsCoords = null;
 let isEmergencyActive = false;
@@ -481,7 +293,7 @@ async function getLiveGpsCoordinates() {
 }
 
 // ==========================================
-// 8. INTERACTIVE ACTION HANDLERS
+// 6. ACTION DISPATCH & GEOFENCE CONTROLS
 // ==========================================
 window.acceptRescueMission = function() {
   const prompt = document.getElementById('hudDispatchPrompt');
@@ -526,7 +338,7 @@ window.saveGeofenceConfiguration = function() {
 };
 
 // ==========================================
-// 9. NAVIGATION & MODALS
+// 7. NAVIGATION & PORTALS
 // ==========================================
 window.switchPortal = function(portalId) {
   window.stopLiveCameraStream();
@@ -673,7 +485,7 @@ window.exitSuperAdminPortal = function() {
 };
 
 // ==========================================
-// 10. PROFILE EDITING & SOS
+// 8. PROFILE EDITING & SOS DISPATCH
 // ==========================================
 window.openEditOwnProfileModal = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
@@ -702,7 +514,6 @@ window.openEditOwnProfileModal = async function() {
   document.getElementById("editHomeAddress").value = profile.home_address || "";
   document.getElementById("editIsTourist").checked = profile.is_tourist === true;
   document.getElementById("editIsVolunteer").checked = profile.is_volunteer === true;
-  document.getElementById("editPreferredLanguage").value = profile.preferred_language || currentLanguage;
 
   const editPreview = document.getElementById("editSelfiePreview");
   const editPlaceholder = document.getElementById("editCameraPlaceholder");
@@ -730,29 +541,26 @@ window.handleSOSToggle = async function() {
 
   isEmergencyActive = !isEmergencyActive;
   const label = document.getElementById("sosLabel");
-  const t = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+  const dot = document.getElementById("geofenceDot");
+  const title = document.getElementById("geofenceStatusTitle");
 
   const coords = await getLiveGpsCoordinates();
   const myZone = document.getElementById("activeUserZoneCodeBadge")?.innerText || "MOUNT-PARK";
 
   if (isEmergencyActive) {
-    if (label) label.innerText = t.cancel_sos;
+    if (label) label.innerText = "CANCEL SOS (ACTIVE)";
+    if (dot) { dot.className = "geofence-indicator-dot breach"; }
+    if (title) title.innerText = "⚠️ SOS ALERT ACTIVE";
     triggerVisualAlarm(true);
-    
-    const block = await blockchain.addBlock("EMERGENCY_SOS_BROADCAST", {
-      user_id: userId,
-      zone_code: myZone,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      status: "ACTIVE"
-    });
 
-    localDB.insert("sos_events", { user_id: userId, zone_code: myZone, latitude: coords.latitude, longitude: coords.longitude, status: "ACTIVE", block_hash: block.hash });
+    localDB.insert("sos_events", { user_id: userId, zone_code: myZone, latitude: coords.latitude, longitude: coords.longitude, status: "ACTIVE" });
     try { await supabase.from("sos_events").insert({ user_id: userId, zone_code: myZone, latitude: coords.latitude, longitude: coords.longitude, status: "ACTIVE" }); } catch {}
   } else {
-    if (label) label.innerText = t.send_sos;
+    if (label) label.innerText = "SEND LIVE SOS";
+    if (dot) { dot.className = "geofence-indicator-dot safe"; }
+    if (title) title.innerText = "Inside Safe Zone";
     triggerVisualAlarm(false);
-    await blockchain.addBlock("EMERGENCY_SOS_RESOLVED", { user_id: userId, zone_code: myZone });
+
     localDB.update("sos_events", "user_id", userId, { status: "RESOLVED" });
     try { await supabase.from("sos_events").update({ status: "RESOLVED" }).eq("user_id", userId); } catch {}
   }
@@ -844,7 +652,6 @@ window.handleDeleteCommandCenter = async function() {
     await supabase.from("profiles").delete().eq("zone_code", currentZone);
   } catch {}
 
-  await blockchain.addBlock("ZONE_PURGED", { zone_code: currentZone });
   sessionStorage.removeItem("staffAuthenticated");
   alert(`Destination Zone '${currentZone}' deleted successfully.`);
   window.switchPortal("portalGateway");
@@ -854,20 +661,19 @@ window.handleSelfOptOut = async function() {
   const userId = localStorage.getItem("touristSafetyUserId");
   if (!userId) return;
 
-  if (!confirm("Permanently delete your profile, selfie, and blockchain telemetry?")) return;
+  if (!confirm("Permanently delete your profile, selfie, and location telemetry?")) return;
 
   localDB.delete("profiles", "id", userId);
   localDB.delete("sos_events", "user_id", userId);
   try { await supabase.from("profiles").delete().eq("id", userId); } catch {}
 
-  await blockchain.addBlock("USER_SELF_PURGE", { user_id: userId });
   localStorage.removeItem("touristSafetyUserId");
   alert("Your identity and telemetry have been completely purged.");
   window.switchPortal("portalGateway");
 };
 
 // ==========================================
-// 11. STAFF & SUPER ADMIN DATA LOADERS
+// 9. MONITORING DATA LOADERS
 // ==========================================
 window.loadStaffMonitoringData = async function() {
   const tableBody = document.getElementById("staffTableBody");
@@ -917,7 +723,7 @@ window.loadStaffMonitoringData = async function() {
           </button>
         </td>
         <td><strong>${p.name || 'Anonymous'}</strong></td>
-        <td>${roleBadge || 'User'} <small style="color:#38bdf8;">(${(p.preferred_language || 'en').toUpperCase()})</small></td>
+        <td>${roleBadge || 'User'}</td>
         <td><a href="tel:${p.phone}" style="color:#ffd000; text-decoration:none; font-weight:700;">📞 ${p.phone || 'N/A'}</a></td>
         <td>${p.blood_group || 'N/A'}</td>
         <td>${p.emergency_contact_1 || 'N/A'} (<a href="tel:${p.emergency_phone_1}" style="color:#fff;">${p.emergency_phone_1 || 'N/A'}</a>)</td>
@@ -930,7 +736,6 @@ window.loadStaffMonitoringData = async function() {
 
 window.loadSuperAdminMatrix = async function() {
   const tableBody = document.getElementById("superAdminTableBody");
-  const blockchainGrid = document.getElementById("blockchainCardsGrid");
   if (!tableBody) return;
 
   let profiles = localDB.get("profiles");
@@ -940,27 +745,11 @@ window.loadSuperAdminMatrix = async function() {
   } catch {}
 
   document.getElementById("saZonesCount").innerText = localDB.get("zones").length;
-  document.getElementById("saBlocksCount").innerText = blockchain.chain.length;
   document.getElementById("saTouristsCount").innerText = profiles.filter(p => p.is_tourist).length;
   document.getElementById("saSOSCount").innerText = localDB.get("sos_events").filter(s => s.status === "ACTIVE").length;
 
-  if (blockchainGrid) {
-    blockchainGrid.innerHTML = blockchain.chain.map(b => `
-      <div class="blockchain-block-card">
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:#38bdf8;">
-          <strong>Block #${b.index}</strong>
-          <span>Nonce: ${b.nonce}</span>
-        </div>
-        <div style="font-size:10px; color:#ffd000; font-weight:700; margin:4px 0;">Action: ${b.action}</div>
-        <div style="font-family:monospace; font-size:9px; word-break:break-all; opacity:0.8;">Hash: ${b.hash.substring(0, 18)}...</div>
-        <div style="font-family:monospace; font-size:9px; word-break:break-all; opacity:0.5;">Prev: ${b.previous_hash.substring(0, 18)}...</div>
-        <small style="font-size:8px; opacity:0.6; display:block; margin-top:4px;">${new Date(b.timestamp).toLocaleTimeString()}</small>
-      </div>
-    `).join("");
-  }
-
   if (profiles.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="11" style="text-align:center; opacity:0.7;">No profiles in ledger.</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="11" style="text-align:center; opacity:0.7;">No profiles in system.</td></tr>`;
     return;
   }
 
@@ -989,9 +778,11 @@ window.loadSuperAdminMatrix = async function() {
 };
 
 // ==========================================
-// 12. INITIALIZATION
+// 10. DOM EVENT ATTACHMENTS
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
+  initCursorWallpaper();
+
   const staffAuthForm = document.getElementById("staffAuthForm");
   if (staffAuthForm) {
     staffAuthForm.addEventListener("submit", (e) => {
@@ -1054,7 +845,6 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       if (matched) {
         localStorage.setItem("touristSafetyUserId", matched.id);
-        if (matched.preferred_language) window.changeAppLanguage(matched.preferred_language);
         alert(`Welcome back, ${matched.name}!`);
         window.closeModal();
         updateUserStateView();
@@ -1073,7 +863,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const btn = document.getElementById("regSubmitBtn");
       btn.disabled = true;
-      btn.innerText = "Mining to Blockchain...";
+      btn.innerText = "Activating Safety ID...";
 
       const destinationZone = document.getElementById("regZoneCode").value.trim().toUpperCase();
       const isTourist = selectedRole === "tourist" || document.getElementById("additionalRole")?.checked;
@@ -1094,15 +884,11 @@ window.addEventListener("DOMContentLoaded", () => {
         emergency_phone_2: document.getElementById("emergencyPhone2")?.value.trim() || null,
         home_address: document.getElementById("homeAddress").value.trim(),
         photo_url: selfiePhoto,
-        preferred_language: currentLanguage,
         is_tourist: isTourist,
         is_volunteer: isVolunteer,
         latitude: coords.latitude,
         longitude: coords.longitude
       };
-
-      const minedBlock = await blockchain.addBlock("TOURIST_REGISTRATION", { user_id: payload.id, name: payload.name, phone: payload.phone, zone: payload.zone_code });
-      payload.blockchain_block_index = minedBlock.index;
 
       localDB.insert("profiles", payload);
       try { await supabase.from("profiles").insert(payload); } catch (err) {}
@@ -1114,7 +900,7 @@ window.addEventListener("DOMContentLoaded", () => {
       regForm.reset();
       updateUserStateView();
       btn.disabled = false;
-      btn.innerText = "Complete Registration & Mine to Blockchain";
+      btn.innerText = "Complete Registration & Activate ID";
     });
   }
 
@@ -1123,7 +909,6 @@ window.addEventListener("DOMContentLoaded", () => {
     editProfileForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const profileId = document.getElementById("editProfileId").value;
-      const updatedLang = document.getElementById("editPreferredLanguage")?.value || currentLanguage;
       const updatedSelfie = document.getElementById("editCapturedSelfieData")?.value;
 
       const updates = {
@@ -1138,25 +923,19 @@ window.addEventListener("DOMContentLoaded", () => {
         emergency_contact_2: document.getElementById("editEmergency2")?.value.trim() || null,
         emergency_phone_2: document.getElementById("editEmergencyPhone2")?.value.trim() || null,
         home_address: document.getElementById("homeAddress").value.trim(),
-        preferred_language: updatedLang,
         is_tourist: document.getElementById("editIsTourist").checked,
         is_volunteer: document.getElementById("editIsVolunteer").checked
       };
 
       if (updatedSelfie) updates.photo_url = updatedSelfie;
 
-      await blockchain.addBlock("PROFILE_UPDATE", { user_id: profileId, name: updates.name, lang: updatedLang });
-
       localDB.update("profiles", "id", profileId, updates);
       try { await supabase.from("profiles").update(updates).eq("id", profileId); } catch {}
 
-      window.changeAppLanguage(updatedLang);
       window.stopLiveCameraStream();
-      alert("Profile and Blockchain Ledger updated successfully!");
+      alert("Profile updated successfully!");
       window.closeModal();
       updateUserStateView();
     });
   }
-
-  window.changeAppLanguage(currentLanguage);
 });
