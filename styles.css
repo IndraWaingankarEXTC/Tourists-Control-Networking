@@ -1,737 +1,943 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --theme-accent: rgba(52, 211, 153, 0.5);
-  --theme-glow: rgba(52, 211, 153, 0.15);
-  --theme-modal-bg: rgba(8, 26, 16, 0.94);
-  --theme-card-bg: rgba(255, 255, 255, 0.14);
-}
-
-body {
-  font-family: "Inter", sans-serif;
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  color: #ffffff;
-  background-color: #030a05;
-  overflow-x: hidden;
-}
-
-/* Dynamic Interactive Cursor Wallpaper */
-.wallpaper-ambient {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  z-index: 1;
-  background: radial-gradient(circle 650px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16, 185, 129, 0.08), transparent 80%);
-  transition: opacity 0.4s ease;
-}
-
-.bg-plane {
-  position: fixed;
-  top: -5%;
-  left: -5%;
-  width: 110vw;
-  height: 110vh;
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  opacity: 0;
-  transition: opacity 2s ease, transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  z-index: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle at 50% 50%, rgba(13, 31, 22, 0.6) 0%, #030a05 100%), 
-                    url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2000&q=80');
-}
-
-.bg-plane.active { opacity: 1; }
-
-.website {
-  min-height: 100vh;
-  width: 100%;
-  position: relative;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.48) 100%);
-  z-index: 2;
-  transition: background 1.5s ease;
-}
-
-.navbar {
-  width: 100%;
-  padding: 20px 6%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  font-family: "Cormorant Garamond", serif;
-}
-
-.brand-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--theme-accent);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(12px);
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.brand strong { display: block; font-size: 20px; }
-.brand span { display: block; font-size: 11px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.85); }
-
-.nav-links a {
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 14px;
-  opacity: 0.9;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 6px 14px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  transition: background 0.2s ease;
-}
-
-.nav-links a:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.hero {
-  min-height: calc(100vh - 84px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px 20px 40px;
-}
-
-.hero-content {
-  text-align: center;
-  max-width: 800px;
-  margin-bottom: 25px;
-}
-
-.heritage-mark {
-  font-size: 11px;
-  letter-spacing: 5px;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 12px;
-}
-
-.hero h1 {
-  font-family: "Cormorant Garamond", serif;
-  font-size: clamp(44px, 6.5vw, 85px);
-  line-height: 0.95;
-  font-weight: 600;
-  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-
-.hero h1 span { color: #ffffff; }
-.hero p { margin-top: 16px; font-size: 15px; color: rgba(255, 255, 255, 0.95); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); }
-
-.user-state-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-
-.action-container-3card {
-  width: min(1150px, 100%);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  justify-content: center;
-  align-items: stretch;
-  margin: 0 auto;
-}
-
-.glass-card {
-  position: relative;
-  padding: 26px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: var(--theme-card-bg);
-  backdrop-filter: blur(20px) saturate(140%);
-  color: #ffffff;
-  text-align: left;
-  cursor: pointer;
-  transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-}
-
-.glass-card:hover {
-  transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.7);
-}
-
-.card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Cormorant Garamond", serif;
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
-
-.staff-card { border-color: rgba(56, 189, 248, 0.6); }
-.staff-icon { color: #38bdf8; background: rgba(56, 189, 248, 0.2); border-color: rgba(56, 189, 248, 0.6); }
-
-.superadmin-card { border-color: rgba(255, 215, 0, 0.7); background: rgba(255, 215, 0, 0.1); }
-.superadmin-icon { color: #ffe600; background: rgba(255, 230, 0, 0.25); border-color: rgba(255, 230, 0, 0.7); }
-
-.signin-card { border-color: var(--theme-accent); }
-.signin-card:hover { border-color: rgba(255, 255, 255, 0.8); }
-.signin-icon { background: var(--theme-glow); border-color: var(--theme-accent); color: #ffffff; font-size: 18px; }
-
-.card-content small { font-size: 10px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.8); }
-.card-content h2 { font-family: "Cormorant Garamond", serif; font-size: 26px; margin: 4px 0; }
-.card-content p { color: rgba(255, 255, 255, 0.9); font-size: 13px; line-height: 1.45; }
-.arrow { position: absolute; top: 22px; right: 22px; font-size: 20px; color: rgba(255, 255, 255, 0.85); }
-
-.session-badge {
-  width: 100%;
-  margin-bottom: 15px;
-  background: var(--theme-glow);
-  border: 1px solid var(--theme-accent);
-  padding: 14px 22px;
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.badge-text small { font-size: 10px; letter-spacing: 1.5px; color: rgba(255, 255, 255, 0.8); display: block; }
-.badge-text strong { font-size: 18px; color: #ffffff; }
-
-.switch-user-btn {
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.switch-user-btn:hover {
-  background: rgba(239, 68, 68, 0.4);
-  border-color: rgba(239, 68, 68, 0.7);
-  color: #ffffff;
-}
-
-/* Digital Safety ID Passport */
-.digital-id-card {
-  width: 100%;
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(255, 208, 0, 0.45);
-  border-radius: 20px;
-  padding: 18px 22px;
-  margin-bottom: 12px;
-  backdrop-filter: blur(25px);
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5);
-}
-
-.digital-id-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  padding-bottom: 10px;
-  margin-bottom: 14px;
-}
-
-.passport-photo-img {
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #ffd000;
-  box-shadow: 0 0 14px rgba(255, 208, 0, 0.5);
-  background: #0f172a;
-}
-
-.table-avatar-img {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1.5px solid #38bdf8;
-  display: block;
-  margin: 0 auto;
-}
-
-.id-badge-chip {
-  background: rgba(34, 197, 94, 0.25);
-  color: #86efac;
-  border: 1px solid #22c55e;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1px;
-}
-
-.digital-id-body {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
-}
-
-.qr-code-box {
-  background: #ffffff;
-  padding: 10px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-}
-
-.qr-code-box img { display: block; }
-
-.digital-id-details {
-  flex: 1;
-  min-width: 220px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.digital-id-details strong { color: #ffd000; }
-
-/* Camera Viewport */
-.camera-section {
-  background: rgba(0, 0, 0, 0.4);
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px dashed rgba(56, 189, 248, 0.5);
-  text-align: center;
-}
-
-.camera-viewport-box {
-  width: 100%;
-  max-width: 220px;
-  height: 220px;
-  margin: 10px auto;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 3px solid #38bdf8;
-  background: #09121a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
-}
-
-.camera-stream, .camera-preview-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.camera-action-btn {
-  background: rgba(56, 189, 248, 0.25);
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.camera-action-btn:hover {
-  background: #38bdf8;
-  color: #022c0e;
-}
-
-.geofence-status-banner {
-  width: 100%;
-  background: rgba(16, 185, 129, 0.2);
-  border: 1px solid #10b981;
-  border-radius: 14px;
-  padding: 12px 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  backdrop-filter: blur(15px);
-  transition: all 0.3s ease;
-}
-
-.geofence-status-banner.breach {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: #ef4444;
-}
-
-.geofence-indicator-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.geofence-indicator-dot.safe {
-  background: #10b981;
-  box-shadow: 0 0 10px #10b981;
-}
-
-.geofence-indicator-dot.breach {
-  background: #ef4444;
-  box-shadow: 0 0 10px #ef4444;
-}
-
-.table-action-edit-btn {
-  background: rgba(56, 189, 248, 0.2);
-  border: 1px solid #38bdf8;
-  color: #e0f2fe;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.table-action-edit-btn:hover {
-  background: #38bdf8;
-  color: #022c0e;
-}
-
-.delete-zone-btn {
-  background: rgba(220, 38, 38, 0.35) !important;
-  border-color: rgba(239, 68, 68, 0.8) !important;
-  color: #fca5a5 !important;
-}
-
-.whatsapp-live-map-window {
-  width: 100%;
-  height: 240px;
-  border-radius: 16px;
-  border: 2px solid rgba(56, 189, 248, 0.6);
-  margin: 14px 0 10px;
-  overflow: hidden;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
-  z-index: 10;
-}
-
-.sos-wrapper { width: 100%; margin-top: 5px; }
-.sos-button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 24px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: rgba(220, 38, 38, 0.65);
-  backdrop-filter: blur(25px);
-  color: white;
-  cursor: pointer;
-}
-
-.sos-symbol {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.25);
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.sos-text { text-align: left; }
-.sos-text small { font-size: 10px; letter-spacing: 2px; opacity: 0.85; }
-.sos-text strong { display: block; font-size: 22px; }
-.sos-arrow { margin-left: auto; font-size: 24px; }
-
-.opt-out-wrapper { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.opt-out-btn {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.85);
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.opt-out-note { font-size: 10px; color: rgba(255, 255, 255, 0.6); }
-
-.staff-dashboard {
-  width: 96%;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 20px 0 60px;
-}
-
-.staff-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-
-.staff-header h2 { font-family: "Cormorant Garamond", serif; font-size: 32px; }
-.refresh-btn {
-  padding: 8px 18px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.18);
-  color: white;
-  cursor: pointer;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 15px;
-  margin-bottom: 15px;
-}
-
-.metric-box {
-  padding: 16px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(15px);
-}
-
-.metric-box span { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8; }
-.metric-box strong { display: block; font-size: 28px; margin-top: 4px; }
-.alert-box { border-color: rgba(255, 80, 80, 0.6); background: rgba(180, 30, 30, 0.3); color: #ff9b9b; }
-
-.responders-live-panel {
-  background: rgba(14, 165, 233, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  border-radius: 16px;
-  padding: 18px 22px;
-  margin-bottom: 20px;
-}
-
-.responders-live-panel .panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  padding-bottom: 10px;
-  margin-bottom: 12px;
-}
-
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: var(--theme-modal-bg);
-}
-
-.staff-table {
-  width: 100%;
-  min-width: 1000px;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 13px;
-}
-
-.staff-table th, .staff-table td {
-  padding: 14px 16px;
-  white-space: nowrap;
-}
-
-.staff-table th {
-  background: rgba(255, 255, 255, 0.18);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.staff-table td { border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-.coord-cell { font-family: monospace; font-size: 12px; color: #a7f3d0; }
-
-.row-sos-red { background-color: rgba(190, 20, 20, 0.7) !important; color: #fff !important; }
-.row-normal { background: transparent; }
-
-.status-tag { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; text-transform: uppercase; font-weight: 700; }
-.tag-red { background: #ff3333; color: white; }
-.tag-green { background: rgba(255, 255, 255, 0.25); color: white; }
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.glass-modal {
-  width: min(600px, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 30px;
-  border-radius: 24px;
-  border: 1px solid var(--theme-accent);
-  background: var(--theme-modal-bg);
-  backdrop-filter: blur(35px);
-}
-
-.auth-modal { width: min(400px, 100%); }
-.back-btn { background: none; border: none; color: rgba(255, 255, 255, 0.85); font-size: 14px; cursor: pointer; margin-bottom: 12px; }
-.form-subtitle { font-size: 13px; color: rgba(255, 255, 255, 0.8); margin-bottom: 20px; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.full-width { grid-column: 1 / -1; }
-.form-group { display: flex; flex-direction: column; gap: 5px; }
-.form-group label { font-size: 12px; color: rgba(255, 255, 255, 0.9); }
-
-.form-group input, .form-group select, .form-group textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  font-size: 14px;
-  outline: none;
-}
-
-.form-group select option { background: #0c1a14; color: #fff; }
-.checkbox-group { flex-direction: row; align-items: center; gap: 10px; margin-top: 5px; }
-.checkbox-group input { width: auto; }
-
-.submit-btn {
-  width: 100%;
-  margin-top: 18px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid var(--theme-accent);
-  background: var(--theme-glow);
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.status-card { text-align: center; }
-.success-icon {
-  width: 55px;
-  height: 55px;
-  border-radius: 50%;
-  background: rgba(100, 200, 120, 0.25);
-  border: 1px solid #75d48c;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  margin: 0 auto 12px;
-  color: #75d48c;
-}
-
-body.emergency-flash .website { background: rgba(180, 20, 20, 0.6) !important; }
-
-/* Volunteer HUD */
-.volunteer-hud {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 320px;
-  background: rgba(15, 23, 42, 0.95);
-  border: 2px solid #38bdf8;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-  z-index: 1500;
-  backdrop-filter: blur(15px);
-}
-
-.hud-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  color: #38bdf8;
-}
-
-.hud-pulse {
-  width: 10px;
-  height: 10px;
-  background: #ef4444;
-  border-radius: 50%;
-  box-shadow: 0 0 10px #ef4444;
-  animation: pulse 1s infinite alternate;
-}
-
-@keyframes pulse {
-  0% { transform: scale(0.9); opacity: 0.6; }
-  100% { transform: scale(1.3); opacity: 1; }
-}
-
-.hud-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.hud-btn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 8px;
-  border: none;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.hud-yes-btn { background: #22c55e; color: #022c0e; }
-.hud-no-btn { background: rgba(255, 255, 255, 0.2); color: #fff; }
-.hud-close-btn { background: none; border: none; color: #fff; cursor: pointer; }
-
-.compass-telemetry {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 6px;
-}
-
-@media (max-width: 900px) {
-  .action-container-3card { grid-template-columns: 1fr; max-width: 480px; }
-  .form-grid { grid-template-columns: 1fr; }
-  .volunteer-hud { left: 20px; right: 20px; width: auto; bottom: 16px; }
-}
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
+// ==========================================
+// 1. SUPABASE & LOCAL-FIRST DATABASE ENGINE
+// ==========================================
+const SUPABASE_URL = "https://ccjygeoxaoomhonwenqw.supabase.co";
+const SUPABASE_KEY = "sb_publishable_rPFLHItf9TI4P_i14P5bqw_tD5dz6mk";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const SUPERADMIN_PASSCODE = "SUPERADMIN2026";
+
+class LocalDatabaseEngine {
+  constructor() {
+    this.zonesKey = "local_db_zones";
+    this.initDefaults();
+  }
+
+  initDefaults() {
+    if (!localStorage.getItem(this.zonesKey)) {
+      const defaultZones = [
+        {
+          zone_code: "MOUNT-PARK",
+          zone_name: "Mountain Range Sector",
+          contact_phone: "+91 9876543210",
+          passcode: "SAFE2026",
+          geofence_lat: 18.9894,
+          geofence_lon: 73.1175,
+          geofence_radius_km: 2.5
+        }
+      ];
+      localStorage.setItem(this.zonesKey, JSON.stringify(defaultZones));
+    }
+  }
+
+  get(table) {
+    try {
+      return JSON.parse(localStorage.getItem(`local_db_${table}`)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  set(table, data) {
+    localStorage.setItem(`local_db_${table}`, JSON.stringify(data));
+  }
+
+  insert(table, item) {
+    const list = this.get(table);
+    const newItem = {
+      id: item.id || `loc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      created_at: new Date().toISOString(),
+      ...item
+    };
+    list.push(newItem);
+    this.set(table, list);
+    return newItem;
+  }
+
+  update(table, matchKey, matchVal, updates) {
+    const list = this.get(table);
+    for (let i = 0; i < list.length; i++) {
+      if (String(list[i][matchKey]) === String(matchVal)) {
+        list[i] = { ...list[i], ...updates, updated_at: new Date().toISOString() };
+      }
+    }
+    this.set(table, list);
+  }
+
+  delete(table, matchKey, matchVal) {
+    const list = this.get(table).filter(item => String(item[matchKey]) !== String(matchVal));
+    this.set(table, list);
+  }
+}
+
+const localDB = new LocalDatabaseEngine();
+
+// ==========================================
+// 2. SUBTLE CURSOR-RESPONSIVE WALLPAPER
+// ==========================================
+function initCursorWallpaper() {
+  const plane = document.getElementById("bgPlaneA");
+  const ambient = document.getElementById("cursorAmbient");
+  if (!plane) return;
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let currentX = 0;
+  let currentY = 0;
+
+  window.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    if (ambient) {
+      ambient.style.setProperty("--mouse-x", `${mouseX}px`);
+      ambient.style.setProperty("--mouse-y", `${mouseY}px`);
+    }
+  });
+
+  function renderWallpaper() {
+    const targetX = (mouseX / window.innerWidth - 0.5) * -18;
+    const targetY = (mouseY / window.innerHeight - 0.5) * -18;
+
+    currentX += (targetX - currentX) * 0.05;
+    currentY += (targetY - currentY) * 0.05;
+
+    plane.style.transform = `translate3d(${currentX}px, ${currentY}px, 0) scale(1.03)`;
+    requestAnimationFrame(renderWallpaper);
+  }
+  requestAnimationFrame(renderWallpaper);
+}
+
+// ==========================================
+// 3. HARDWARE CAMERA & LIVE SELFIE ENGINE
+// ==========================================
+let activeCameraMediaStream = null;
+
+window.stopLiveCameraStream = function() {
+  if (activeCameraMediaStream) {
+    activeCameraMediaStream.getTracks().forEach(track => track.stop());
+    activeCameraMediaStream = null;
+  }
+};
+
+window.handleNativeSelfieCapture = function(event, previewId, placeholderId, hiddenInputId, videoId, captureBtnId, retakeBtnId) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64Data = e.target.result;
+    const preview = document.getElementById(previewId);
+    const placeholder = document.getElementById(placeholderId);
+    const hiddenInput = document.getElementById(hiddenInputId);
+    const video = document.getElementById(videoId);
+    const captureBtn = document.getElementById(captureBtnId);
+    const retakeBtn = document.getElementById(retakeBtnId);
+
+    if (hiddenInput) hiddenInput.value = base64Data;
+    if (preview) { preview.src = base64Data; preview.style.display = "block"; }
+    if (placeholder) placeholder.style.display = "none";
+    if (video) video.style.display = "none";
+    if (captureBtn) captureBtn.style.display = "none";
+    if (retakeBtn) retakeBtn.style.display = "inline-block";
+
+    window.stopLiveCameraStream();
+  };
+  reader.readAsDataURL(file);
+};
+
+window.startLiveCamera = async function(videoId, previewId, placeholderId, captureBtnId, retakeBtnId) {
+  window.stopLiveCameraStream();
+  const video = document.getElementById(videoId);
+  const preview = document.getElementById(previewId);
+  const placeholder = document.getElementById(placeholderId);
+  const captureBtn = document.getElementById(captureBtnId);
+  const retakeBtn = document.getElementById(retakeBtnId);
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Live camera streaming is not supported on this browser. Use '📱 Tap to Upload'.");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 480 } },
+      audio: false
+    });
+    activeCameraMediaStream = stream;
+    video.srcObject = stream;
+    video.style.display = "block";
+    if (preview) preview.style.display = "none";
+    if (placeholder) placeholder.style.display = "none";
+    if (captureBtn) captureBtn.style.display = "inline-block";
+    if (retakeBtn) retakeBtn.style.display = "none";
+  } catch (err) {
+    alert(`Could not start live stream: ${err.message}. Please use '📱 Tap to Upload'.`);
+  }
+};
+
+window.captureLiveSelfie = function(videoId, canvasId, previewId, placeholderId, hiddenInputId, captureBtnId, retakeBtnId) {
+  const video = document.getElementById(videoId);
+  const canvas = document.getElementById(canvasId);
+  const preview = document.getElementById(previewId);
+  const placeholder = document.getElementById(placeholderId);
+  const hiddenInput = document.getElementById(hiddenInputId);
+  const captureBtn = document.getElementById(captureBtnId);
+  const retakeBtn = document.getElementById(retakeBtnId);
+
+  if (!video || !canvas) return;
+
+  const width = video.videoWidth || 320;
+  const height = video.videoHeight || 320;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, width, height);
+
+  const base64Data = canvas.toDataURL('image/jpeg', 0.85);
+  if (hiddenInput) hiddenInput.value = base64Data;
+  if (preview) { preview.src = base64Data; preview.style.display = "block"; }
+  if (placeholder) placeholder.style.display = "none";
+
+  video.style.display = "none";
+  if (captureBtn) captureBtn.style.display = "none";
+  if (retakeBtn) retakeBtn.style.display = "inline-block";
+
+  window.stopLiveCameraStream();
+};
+
+window.retakeLiveSelfie = function(videoId, previewId, placeholderId, hiddenInputId, captureBtnId, retakeBtnId) {
+  const hiddenInput = document.getElementById(hiddenInputId);
+  if (hiddenInput) hiddenInput.value = "";
+  window.startLiveCamera(videoId, previewId, placeholderId, captureBtnId, retakeBtnId);
+};
+
+// ==========================================
+// 4. QR CODE & VERIFICATION
+// ==========================================
+function formatProfileDataForQR(profile) {
+  const roles = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ") || "User";
+  const em1 = profile.emergency_contact_1 ? `${profile.emergency_contact_1} (${profile.emergency_phone_1 || 'N/A'})` : "None";
+
+  return `TOURIST SAFETY PASSPORT
+Name: ${profile.name || 'N/A'}
+Role: ${roles}
+Zone: ${profile.zone_code || 'UNASSIGNED'}
+Phone: ${profile.phone || 'N/A'}
+Blood: ${profile.blood_group || 'N/A'}
+Age/Gender: ${profile.age || 'N/A'}/${profile.gender || 'N/A'}
+ICE: ${em1}
+Stay: ${profile.home_address || 'N/A'}`;
+}
+
+function renderQRCodeInElement(elementId, text, size = 180) {
+  const container = document.getElementById(elementId);
+  if (!container) return;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`;
+  container.innerHTML = `<img src="${qrUrl}" width="${size}" height="${size}" alt="Digital ID QR Code" style="display:block; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.2);">`;
+}
+
+window.inspectUserProfileQR = function(encodedProfileJson) {
+  try {
+    const profile = JSON.parse(decodeURIComponent(encodedProfileJson));
+    const modal = document.getElementById("qrInspectionModal");
+    const overlay = document.getElementById("modalOverlay");
+    const titleEl = document.getElementById("inspectModalName");
+    const detailsEl = document.getElementById("inspectQRTextDetails");
+    const selfieImg = document.getElementById("inspectSelfieImg");
+
+    if (titleEl) titleEl.innerText = `${profile.name}'s Verified ID`;
+    if (selfieImg) selfieImg.src = profile.photo_url || DEFAULT_AVATAR;
+
+    const qrText = formatProfileDataForQR(profile);
+    renderQRCodeInElement("inspectQRCodeContainer", qrText, 200);
+
+    if (detailsEl) {
+      detailsEl.innerHTML = `
+        <div><strong>Zone:</strong> <span style="color:#ffd000;">${profile.zone_code || 'UNASSIGNED'}</span></div>
+        <div><strong>Role:</strong> ${[profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ")}</div>
+        <div><strong>Phone:</strong> <a href="tel:${profile.phone}" style="color:#38bdf8;">${profile.phone || 'N/A'}</a></div>
+        <div><strong>Blood Group:</strong> <span style="color:#ef4444; font-weight:700;">${profile.blood_group || 'N/A'}</span></div>
+        <div><strong>Primary ICE:</strong> ${profile.emergency_contact_1 || 'N/A'}</div>
+        <div><strong>Stay Address:</strong> ${profile.home_address || 'N/A'}</div>
+      `;
+    }
+
+    if (overlay) overlay.style.display = "flex";
+    if (modal) modal.style.display = "block";
+  } catch (err) {
+    console.error("QR Inspection Error:", err);
+  }
+};
+
+// ==========================================
+// 5. GPS & LEAFLET ENGINE
+// ==========================================
+let verifiedGpsCoords = null;
+let isEmergencyActive = false;
+let emergencyInterval = null;
+let touristOverviewMapInstance = null;
+let touristOverviewMarker = null;
+let touristOverviewGeofenceCircle = null;
+let staffGeofenceMapInstance = null;
+let staffGeofenceCircle = null;
+let staffGeofenceCenterMarker = null;
+let activeZoneGeofence = { latitude: 18.9894, longitude: 73.1175, radiusKm: 2.5 };
+let selectedRole = null;
+
+async function getLiveGpsCoordinates() {
+  if (verifiedGpsCoords) return verifiedGpsCoords;
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        verifiedGpsCoords = { latitude: Number(pos.coords.latitude), longitude: Number(pos.coords.longitude) };
+        resolve(verifiedGpsCoords);
+      },
+      () => resolve(verifiedGpsCoords || { latitude: 18.9894, longitude: 73.1175 }),
+      { enableHighAccuracy: true, timeout: 4000 }
+    );
+  });
+}
+
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+async function checkTouristGeofenceBoundary() {
+  const coords = await getLiveGpsCoordinates();
+  const dist = calculateDistanceKm(coords.latitude, coords.longitude, activeZoneGeofence.latitude, activeZoneGeofence.longitude);
+  const dot = document.getElementById("geofenceDot");
+  const title = document.getElementById("geofenceStatusTitle");
+  const desc = document.getElementById("geofenceStatusDesc");
+  const banner = document.getElementById("touristGeofenceBanner");
+
+  if (dist > activeZoneGeofence.radiusKm) {
+    if (dot) { dot.className = "geofence-indicator-dot breach"; }
+    if (banner) { banner.className = "geofence-status-banner breach"; }
+    if (title) title.innerText = "Outside Safe Zone Boundary";
+    if (desc) desc.innerText = `You are ${dist.toFixed(2)} km away from the center perimeter. Stay alert!`;
+  } else {
+    if (dot) { dot.className = "geofence-indicator-dot safe"; }
+    if (banner) { banner.className = "geofence-status-banner"; }
+    if (title) title.innerText = "Inside Certified Safe Zone";
+    if (desc) desc.innerText = `Within safe perimeter (${dist.toFixed(2)} km to sector hub).`;
+  }
+
+  initOrUpdateTouristMap(coords.latitude, coords.longitude);
+}
+
+function initOrUpdateTouristMap(lat, lon) {
+  const container = document.getElementById("touristOverviewMap");
+  if (!container || typeof L === 'undefined') return;
+
+  if (!touristOverviewMapInstance) {
+    touristOverviewMapInstance = L.map('touristOverviewMap').setView([lat, lon], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(touristOverviewMapInstance);
+
+    touristOverviewMarker = L.marker([lat, lon]).addTo(touristOverviewMapInstance).bindPopup("Your Location");
+    touristOverviewGeofenceCircle = L.circle([activeZoneGeofence.latitude, activeZoneGeofence.longitude], {
+      color: '#10b981',
+      fillColor: '#10b981',
+      fillOpacity: 0.15,
+      radius: activeZoneGeofence.radiusKm * 1000
+    }).addTo(touristOverviewMapInstance);
+  } else {
+    touristOverviewMarker.setLatLng([lat, lon]);
+    touristOverviewGeofenceCircle.setLatLng([activeZoneGeofence.latitude, activeZoneGeofence.longitude]);
+    touristOverviewGeofenceCircle.setRadius(activeZoneGeofence.radiusKm * 1000);
+    touristOverviewMapInstance.setView([lat, lon]);
+  }
+}
+
+function initStaffGeofenceMap() {
+  const container = document.getElementById("staffGeofenceEditorMap");
+  if (!container || typeof L === 'undefined') return;
+
+  if (!staffGeofenceMapInstance) {
+    staffGeofenceMapInstance = L.map('staffGeofenceEditorMap').setView([activeZoneGeofence.latitude, activeZoneGeofence.longitude], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(staffGeofenceMapInstance);
+
+    staffGeofenceCenterMarker = L.marker([activeZoneGeofence.latitude, activeZoneGeofence.longitude], { draggable: true }).addTo(staffGeofenceMapInstance);
+    staffGeofenceCircle = L.circle([activeZoneGeofence.latitude, activeZoneGeofence.longitude], {
+      color: '#38bdf8',
+      fillColor: '#38bdf8',
+      fillOpacity: 0.2,
+      radius: activeZoneGeofence.radiusKm * 1000
+    }).addTo(staffGeofenceMapInstance);
+
+    staffGeofenceCenterMarker.on('dragend', function (e) {
+      const pos = e.target.getLatLng();
+      activeZoneGeofence.latitude = pos.lat;
+      activeZoneGeofence.longitude = pos.lng;
+      staffGeofenceCircle.setLatLng(pos);
+    });
+  } else {
+    staffGeofenceCenterMarker.setLatLng([activeZoneGeofence.latitude, activeZoneGeofence.longitude]);
+    staffGeofenceCircle.setLatLng([activeZoneGeofence.latitude, activeZoneGeofence.longitude]);
+    staffGeofenceCircle.setRadius(activeZoneGeofence.radiusKm * 1000);
+    staffGeofenceMapInstance.setView([activeZoneGeofence.latitude, activeZoneGeofence.longitude]);
+  }
+}
+
+// ==========================================
+// 6. ACTION DISPATCH & GEOFENCE CONTROLS
+// ==========================================
+window.acceptRescueMission = function() {
+  const prompt = document.getElementById('hudDispatchPrompt');
+  const compass = document.getElementById('hudCompassView');
+  if (prompt) prompt.style.display = 'none';
+  if (compass) compass.style.display = 'block';
+};
+
+window.declineRescueMission = function() {
+  const hud = document.getElementById('volunteerHudWidget');
+  if (hud) hud.style.display = 'none';
+};
+
+window.closeCompassView = function() {
+  const hud = document.getElementById('volunteerHudWidget');
+  if (hud) hud.style.display = 'none';
+};
+
+window.dismissSafetyCheckin = function(isSafe) {
+  const modal = document.getElementById('safetyCheckinModal');
+  if (modal) modal.style.display = 'none';
+  if (!isSafe) window.handleSOSToggle();
+};
+
+window.updateGeofenceRadiusFromSlider = function(val) {
+  const badge = document.getElementById('currentRadiusBadge');
+  if (badge) badge.innerText = `Radius: ${val} km`;
+  activeZoneGeofence.radiusKm = parseFloat(val);
+  if (staffGeofenceCircle) {
+    staffGeofenceCircle.setRadius(activeZoneGeofence.radiusKm * 1000);
+  }
+};
+
+window.saveGeofenceConfiguration = function() {
+  const currentZone = sessionStorage.getItem("staffZoneCode") || "MOUNT-PARK";
+  localDB.update("zones", "zone_code", currentZone, {
+    geofence_radius_km: activeZoneGeofence.radiusKm,
+    geofence_lat: activeZoneGeofence.latitude,
+    geofence_lon: activeZoneGeofence.longitude
+  });
+  alert(`Geofence boundary saved: ${activeZoneGeofence.radiusKm} km radius for Zone ${currentZone}`);
+};
+
+// ==========================================
+// 7. NAVIGATION & PORTALS
+// ==========================================
+window.switchPortal = function(portalId) {
+  window.stopLiveCameraStream();
+  ['portalGateway', 'userPortal', 'staffPortal', 'superAdminPortal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === portalId) ? 'block' : 'none';
+  });
+  window.closeModal();
+
+  setTimeout(() => {
+    if (portalId === 'userPortal' && touristOverviewMapInstance) touristOverviewMapInstance.invalidateSize();
+    if (portalId === 'staffPortal' && staffGeofenceMapInstance) staffGeofenceMapInstance.invalidateSize();
+  }, 200);
+};
+
+window.enterUserMode = function() {
+  window.switchPortal('userPortal');
+  updateUserStateView();
+  checkTouristGeofenceBoundary();
+};
+
+async function updateUserStateView() {
+  const userId = localStorage.getItem("touristSafetyUserId");
+  const loggedOutSec = document.getElementById("loggedOutSection");
+  const loggedInSec = document.getElementById("loggedInSection");
+  const nameEl = document.getElementById("activeUserName");
+  const roleEl = document.getElementById("activeUserRole");
+  const zoneBadge = document.getElementById("activeUserZoneCodeBadge");
+
+  if (!userId) {
+    if (loggedOutSec) loggedOutSec.style.display = "block";
+    if (loggedInSec) loggedInSec.style.display = "none";
+    return;
+  }
+
+  let profile = localDB.get("profiles").find(p => String(p.id) === String(userId));
+  if (!profile) {
+    try {
+      const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+      profile = data;
+    } catch {}
+  }
+
+  if (!profile) {
+    localStorage.removeItem("touristSafetyUserId");
+    if (loggedOutSec) loggedOutSec.style.display = "block";
+    if (loggedInSec) loggedInSec.style.display = "none";
+    return;
+  }
+
+  if (loggedOutSec) loggedOutSec.style.display = "none";
+  if (loggedInSec) loggedInSec.style.display = "block";
+
+  const userRoles = [profile.is_tourist ? "Tourist" : "", profile.is_volunteer ? "Volunteer" : ""].filter(Boolean).join(" & ");
+
+  if (nameEl) nameEl.innerText = profile.name;
+  if (roleEl) roleEl.innerText = userRoles || "User";
+  if (zoneBadge) zoneBadge.innerText = profile.zone_code || "UNASSIGNED";
+
+  const idNameEl = document.getElementById("digitalIdName");
+  const idRoleEl = document.getElementById("digitalIdRole");
+  const idPhoneEl = document.getElementById("idPhone");
+  const idBloodEl = document.getElementById("idBlood");
+  const idEmergencyEl = document.getElementById("idEmergency");
+  const idAddressEl = document.getElementById("idAddress");
+  const passportPhoto = document.getElementById("passportSelfiePhoto");
+
+  if (idNameEl) idNameEl.innerText = profile.name;
+  if (idRoleEl) idRoleEl.innerText = `${userRoles} • Blood: ${profile.blood_group || 'N/A'}`;
+  if (idPhoneEl) idPhoneEl.innerText = profile.phone || 'N/A';
+  if (idBloodEl) idBloodEl.innerText = profile.blood_group || 'N/A';
+  if (idEmergencyEl) idEmergencyEl.innerText = profile.emergency_contact_1 || 'N/A';
+  if (idAddressEl) idAddressEl.innerText = profile.home_address || 'N/A';
+  if (passportPhoto) passportPhoto.src = profile.photo_url || DEFAULT_AVATAR;
+
+  const qrString = formatProfileDataForQR(profile);
+  renderQRCodeInElement("userPersonalQRCode", qrString, 140);
+}
+
+window.signOutCurrentUser = function() {
+  localStorage.removeItem("touristSafetyUserId");
+  updateUserStateView();
+  alert("Signed out successfully.");
+};
+
+window.openStaffModal = function() {
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const authModal = document.getElementById("staffPasscodeModal");
+  if (overlay) overlay.style.display = "flex";
+  if (authModal) authModal.style.display = "block";
+};
+
+window.openSuperAdminModal = function() {
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const superModal = document.getElementById("superAdminAuthModal");
+  if (overlay) overlay.style.display = "flex";
+  if (superModal) superModal.style.display = "block";
+};
+
+window.openCreateZoneModal = function() {
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const createModal = document.getElementById("createZoneModal");
+  if (overlay) overlay.style.display = "flex";
+  if (createModal) createModal.style.display = "block";
+};
+
+window.openSignInModal = function() {
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const signInModal = document.getElementById("userSignInModal");
+  if (overlay) overlay.style.display = "flex";
+  if (signInModal) signInModal.style.display = "block";
+};
+
+window.openRegistration = function(role) {
+  selectedRole = role;
+  window.closeModal();
+  const overlay = document.getElementById("modalOverlay");
+  const reg = document.getElementById("registrationPage");
+  const title = document.getElementById("registrationTitle");
+  if (overlay) overlay.style.display = "flex";
+  if (reg) reg.style.display = "block";
+  if (title) title.innerText = role === "tourist" ? "Tourist Registration" : "Volunteer Registration";
+};
+
+window.closeModal = function() {
+  window.stopLiveCameraStream();
+  ['modalOverlay', 'registrationPage', 'successPage', 'staffPasscodeModal', 'userSignInModal', 'createZoneModal', 'superAdminAuthModal', 'editProfileModal', 'qrInspectionModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+};
+
+window.exitStaffPortal = function() {
+  sessionStorage.removeItem("staffAuthenticated");
+  sessionStorage.removeItem("staffZoneCode");
+  window.switchPortal("portalGateway");
+};
+
+window.exitSuperAdminPortal = function() {
+  sessionStorage.removeItem("superAdminAuthenticated");
+  window.switchPortal("portalGateway");
+};
+
+// ==========================================
+// 8. PROFILE EDITING, RECONSTRUCTED COMPLETION & SOS
+// ==========================================
+window.openEditOwnProfileModal = async function() {
+  const userId = localStorage.getItem("touristSafetyUserId");
+  if (!userId) return alert("Please sign in first.");
+
+  let profile = localDB.get("profiles").find(p => String(p.id) === String(userId));
+  if (!profile) {
+    try {
+      const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+      profile = data;
+    } catch {}
+  }
+  if (!profile) return alert("Could not retrieve profile record.");
+
+  window.closeModal();
+
+  document.getElementById("editProfileId").value = profile.id;
+  document.getElementById("editZoneCode").value = profile.zone_code || "";
+  document.getElementById("editFullName").value = profile.name || "";
+  document.getElementById("editPhone").value = profile.phone || "";
+  document.getElementById("editBloodGroup").value = profile.blood_group || "A+";
+  document.getElementById("editEmergencyContact").value = profile.emergency_contact_1 || "";
+  document.getElementById("editAddress").value = profile.home_address || "";
+
+  const overlay = document.getElementById("modalOverlay");
+  const modal = document.getElementById("editProfileModal");
+  if (overlay) overlay.style.display = "flex";
+  if (modal) modal.style.display = "block";
+};
+
+window.handleSOSToggle = async function() {
+  const userId = localStorage.getItem("touristSafetyUserId");
+  const label = document.getElementById("sosLabel");
+  const coords = await getLiveGpsCoordinates();
+
+  isEmergencyActive = !isEmergencyActive;
+
+  if (isEmergencyActive) {
+    document.body.classList.add("emergency-flash");
+    if (label) label.innerText = "CANCEL SOS";
+
+    if (userId) {
+      localDB.update("profiles", "id", userId, { is_sos: true, last_lat: coords.latitude, last_lon: coords.longitude });
+      try {
+        await supabase.from("profiles").update({ is_sos: true, last_lat: coords.latitude, last_lon: coords.longitude }).eq("id", userId);
+      } catch {}
+    }
+
+    emergencyInterval = setInterval(async () => {
+      const updated = await getLiveGpsCoordinates();
+      if (userId) {
+        localDB.update("profiles", "id", userId, { last_lat: updated.latitude, last_lon: updated.longitude });
+      }
+    }, 15000);
+
+    alert("EMERGENCY SIGNAL ACTIVE! Coordinates and profile dispatched to Zone Authority.");
+  } else {
+    document.body.classList.remove("emergency-flash");
+    if (label) label.innerText = "SEND LIVE SOS";
+    clearInterval(emergencyInterval);
+
+    if (userId) {
+      localDB.update("profiles", "id", userId, { is_sos: false });
+      try {
+        await supabase.from("profiles").update({ is_sos: false }).eq("id", userId);
+      } catch {}
+    }
+    alert("Emergency signal canceled.");
+  }
+};
+
+window.handleSelfOptOut = async function() {
+  const userId = localStorage.getItem("touristSafetyUserId");
+  if (!userId) return;
+
+  if (confirm("Are you sure you want to opt-out and purge all your safety telemetry?")) {
+    localDB.delete("profiles", "id", userId);
+    try {
+      await supabase.from("profiles").delete().eq("id", userId);
+    } catch {}
+    localStorage.removeItem("touristSafetyUserId");
+    alert("Profile and live telemetry permanently purged.");
+    updateUserStateView();
+  }
+};
+
+window.loadStaffMonitoringData = async function() {
+  const currentZone = sessionStorage.getItem("staffZoneCode") || "MOUNT-PARK";
+  const header = document.getElementById("staffZoneDisplayHeader");
+  if (header) header.innerText = currentZone;
+
+  let profiles = localDB.get("profiles").filter(p => (p.zone_code || "").toUpperCase() === currentZone.toUpperCase());
+
+  try {
+    const { data } = await supabase.from("profiles").select("*").ilike("zone_code", currentZone);
+    if (data && data.length > 0) profiles = data;
+  } catch {}
+
+  const tbody = document.getElementById("staffTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  let activeTourists = 0;
+  let activeVolunteers = 0;
+  let activeSos = 0;
+
+  profiles.forEach(p => {
+    if (p.is_tourist) activeTourists++;
+    if (p.is_volunteer) activeVolunteers++;
+    if (p.is_sos) activeSos++;
+
+    const isSos = !!p.is_sos;
+    const tr = document.createElement("tr");
+    tr.className = isSos ? "row-sos-red" : "row-normal";
+
+    const encodedData = encodeURIComponent(JSON.stringify(p));
+
+    tr.innerHTML = `
+      <td><span class="status-tag ${isSos ? 'tag-red' : 'tag-green'}">${isSos ? '🚨 SOS ACTIVE' : 'SAFE'}</span></td>
+      <td><img src="${p.photo_url || DEFAULT_AVATAR}" class="table-avatar-img" alt="avatar" /></td>
+      <td><button class="table-action-edit-btn" onclick="inspectUserProfileQR('${encodedData}')">View ID</button></td>
+      <td><strong>${p.name || 'Anonymous'}</strong></td>
+      <td>${[p.is_tourist ? 'Tourist' : '', p.is_volunteer ? 'Volunteer' : ''].filter(Boolean).join(' & ') || 'User'}</td>
+      <td><a href="tel:${p.phone}" style="color:#38bdf8;">${p.phone || 'N/A'}</a></td>
+      <td>${p.blood_group || 'N/A'}</td>
+      <td>${p.emergency_contact_1 || 'N/A'}</td>
+      <td>${p.home_address || 'N/A'}</td>
+      <td class="coord-cell">${p.last_lat ? `${Number(p.last_lat).toFixed(4)},${Number(p.last_lon).toFixed(4)}` : 'No Telemetry'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("mTotal").innerText = profiles.length;
+  document.getElementById("mTourists").innerText = activeTourists;
+  document.getElementById("mVolunteers").innerText = activeVolunteers;
+  document.getElementById("mSOS").innerText = activeSos;
+
+  initStaffGeofenceMap();
+};
+
+window.loadSuperAdminMatrix = async function() {
+  const zones = localDB.get("zones");
+  let profiles = localDB.get("profiles");
+
+  try {
+    const { data } = await supabase.from("profiles").select("*");
+    if (data && data.length > 0) profiles = data;
+  } catch {}
+
+  document.getElementById("saZonesCount").innerText = zones.length;
+  document.getElementById("saTouristsCount").innerText = profiles.filter(p => p.is_tourist).length;
+  document.getElementById("saSOSCount").innerText = profiles.filter(p => p.is_sos).length;
+
+  const tbody = document.getElementById("superAdminTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  profiles.forEach(p => {
+    const isSos = !!p.is_sos;
+    const tr = document.createElement("tr");
+    tr.className = isSos ? "row-sos-red" : "row-normal";
+    const encodedData = encodeURIComponent(JSON.stringify(p));
+
+    tr.innerHTML = `
+      <td style="color: #ffd000; font-weight:700;">${p.zone_code || 'UNASSIGNED'}</td>
+      <td><span class="status-tag ${isSos ? 'tag-red' : 'tag-green'}">${isSos ? '🚨 SOS ACTIVE' : 'SAFE'}</span></td>
+      <td><img src="${p.photo_url || DEFAULT_AVATAR}" class="table-avatar-img" alt="avatar" /></td>
+      <td><button class="table-action-edit-btn" onclick="inspectUserProfileQR('${encodedData}')">View ID</button></td>
+      <td><strong>${p.name || 'Anonymous'}</strong></td>
+      <td>${[p.is_tourist ? 'Tourist' : '', p.is_volunteer ? 'Volunteer' : ''].filter(Boolean).join(' & ') || 'User'}</td>
+      <td>${p.phone || 'N/A'}</td>
+      <td>${p.blood_group || 'N/A'}</td>
+      <td>${p.emergency_contact_1 || 'N/A'}</td>
+      <td>${p.home_address || 'N/A'}</td>
+      <td class="coord-cell">${p.last_lat ? `${Number(p.last_lat).toFixed(4)},${Number(p.last_lon).toFixed(4)}` : 'No Telemetry'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+};
+
+window.handleDeleteCommandCenter = function() {
+  const currentZone = sessionStorage.getItem("staffZoneCode");
+  if (!currentZone) return;
+
+  if (confirm(`Are you sure you want to delete zone ${currentZone}?`)) {
+    localDB.delete("zones", "zone_code", currentZone);
+    alert(`Zone ${currentZone} deleted.`);
+    window.exitStaffPortal();
+  }
+};
+
+// ==========================================
+// 9. FORM ATTACHMENTS & INITIALIZATION
+// ==========================================
+document.addEventListener("DOMContentLoaded", () => {
+  initCursorWallpaper();
+
+  // Registration Submission
+  const regForm = document.getElementById("registrationForm");
+  if (regForm) {
+    regForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const coords = await getLiveGpsCoordinates();
+
+      const newProfile = {
+        name: document.getElementById("regFullName").value.trim(),
+        phone: document.getElementById("regPhone").value.trim(),
+        zone_code: document.getElementById("regZoneCode").value.trim().toUpperCase(),
+        blood_group: document.getElementById("regBloodGroup").value,
+        age: document.getElementById("regAge").value,
+        gender: document.getElementById("regGender").value,
+        emergency_contact_1: document.getElementById("regEmergency1").value.trim(),
+        home_address: document.getElementById("regAddress").value.trim(),
+        photo_url: document.getElementById("regSelfieBase64").value || DEFAULT_AVATAR,
+        is_tourist: selectedRole === "tourist",
+        is_volunteer: selectedRole === "volunteer",
+        is_sos: false,
+        last_lat: coords.latitude,
+        last_lon: coords.longitude
+      };
+
+      const saved = localDB.insert("profiles", newProfile);
+      try {
+        await supabase.from("profiles").insert([newProfile]);
+      } catch {}
+
+      localStorage.setItem("touristSafetyUserId", saved.id);
+      window.closeModal();
+
+      const overlay = document.getElementById("modalOverlay");
+      const succ = document.getElementById("successPage");
+      if (overlay) overlay.style.display = "flex";
+      if (succ) succ.style.display = "block";
+    });
+  }
+
+  // Edit Profile Submission
+  const editForm = document.getElementById("editProfileForm");
+  if (editForm) {
+    editForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = document.getElementById("editProfileId").value;
+      const updates = {
+        name: document.getElementById("editFullName").value.trim(),
+        zone_code: document.getElementById("editZoneCode").value.trim().toUpperCase(),
+        phone: document.getElementById("editPhone").value.trim(),
+        blood_group: document.getElementById("editBloodGroup").value,
+        emergency_contact_1: document.getElementById("editEmergencyContact").value.trim(),
+        home_address: document.getElementById("editAddress").value.trim()
+      };
+
+      localDB.update("profiles", "id", id, updates);
+      try {
+        await supabase.from("profiles").update(updates).eq("id", id);
+      } catch {}
+
+      window.closeModal();
+      updateUserStateView();
+      alert("Profile updated successfully.");
+    });
+  }
+
+  // Staff Login Submission
+  const staffForm = document.getElementById("staffAuthForm");
+  if (staffForm) {
+    staffForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const zoneCode = document.getElementById("staffZoneInput").value.trim().toUpperCase();
+      const pass = document.getElementById("staffPasscodeInput").value;
+
+      const zone = localDB.get("zones").find(z => z.zone_code.toUpperCase() === zoneCode);
+      if (zone && zone.passcode === pass) {
+        sessionStorage.setItem("staffAuthenticated", "true");
+        sessionStorage.setItem("staffZoneCode", zoneCode);
+        activeZoneGeofence.latitude = zone.geofence_lat || 18.9894;
+        activeZoneGeofence.longitude = zone.geofence_lon || 73.1175;
+        activeZoneGeofence.radiusKm = zone.geofence_radius_km || 2.5;
+
+        window.switchPortal("staffPortal");
+        window.loadStaffMonitoringData();
+      } else {
+        alert("Invalid zone code or passcode.");
+      }
+    });
+  }
+
+  // Super Admin Login Submission
+  const superForm = document.getElementById("superAdminAuthForm");
+  if (superForm) {
+    superForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const pass = document.getElementById("superAdminPasscode").value;
+      if (pass === SUPERADMIN_PASSCODE) {
+        sessionStorage.setItem("superAdminAuthenticated", "true");
+        window.switchPortal("superAdminPortal");
+        window.loadSuperAdminMatrix();
+      } else {
+        alert("Unauthorized access key.");
+      }
+    });
+  }
+
+  // User Sign-In Submission
+  const userSignForm = document.getElementById("userSignInForm");
+  if (userSignForm) {
+    userSignForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const phone = document.getElementById("signInPhone").value.trim();
+      let profile = localDB.get("profiles").find(p => p.phone === phone);
+
+      if (!profile) {
+        try {
+          const { data } = await supabase.from("profiles").select("*").eq("phone", phone).maybeSingle();
+          profile = data;
+        } catch {}
+      }
+
+      if (profile) {
+        localStorage.setItem("touristSafetyUserId", profile.id);
+        window.closeModal();
+        updateUserStateView();
+        alert(`Welcome back, ${profile.name}!`);
+      } else {
+        alert("No profile found with this phone number. Please register.");
+      }
+    });
+  }
+
+  // Create Zone Submission
+  const createZoneForm = document.getElementById("createZoneForm");
+  if (createZoneForm) {
+    createZoneForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const newZone = {
+        zone_code: document.getElementById("newZoneCode").value.trim().toUpperCase(),
+        zone_name: document.getElementById("newZoneName").value.trim(),
+        contact_phone: document.getElementById("newZonePhone").value.trim(),
+        passcode: document.getElementById("newZonePasscode").value,
+        geofence_lat: 18.9894,
+        geofence_lon: 73.1175,
+        geofence_radius_km: 2.5
+      };
+
+      localDB.insert("zones", newZone);
+      alert(`Zone ${newZone.zone_code} created successfully.`);
+      window.closeModal();
+      window.loadSuperAdminMatrix();
+    });
+  }
+});
